@@ -49,7 +49,7 @@
       }
       function exportTxt() {
         const t = visible().map((n) => `[${n.done ? 'x' : ' '}] ${n.dept || 'General'} · ${when(n.createdAt)}\n${n.text}\n`).join('\n');
-        const a = h('a', { href: URL.createObjectURL(new Blob([t], { type: 'text/plain;charset=utf-8' })), download: `discussion-points-${new Date().toISOString().slice(0, 10)}.txt` }); document.body.append(a); a.click(); a.remove();
+        LM.saveFile(`discussion-points-${new Date().toISOString().slice(0, 10)}.txt`, t, 'text/plain;charset=utf-8');
       }
       const counts = h('span', { class: 'sub' });
       function draw() {

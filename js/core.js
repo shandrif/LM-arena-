@@ -157,7 +157,15 @@
   LM.csv = (cols, rows, name) => {
     const q = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
     const txt = '﻿' + [cols.map((c) => q(c.label)).join(','), ...rows.map((r) => cols.map((c) => q(r[c.k])).join(','))].join('\n');
-    const a = h('a', { href: URL.createObjectURL(new Blob([txt], { type: 'text/csv' })), download: name }); document.body.append(a); a.click(); a.remove();
+    LM.saveFile(name, txt, 'text/csv');
+  };
+  /* Save a generated file. In a normal browser this is a download; inside a claude.ai artifact it goes through the viewer's "downloads" capability (which asks the viewer to confirm). */
+  LM.saveFile = async (name, data, mime) => {
+    try { if (window.claude && window.claude.use) { const d = await window.claude.use('downloads'); if (d) { await d.save({ filename: name, data }); return true; } } } catch (e) { if (e && e.code === 'declined') return false; if (e && e.code && e.code !== 'unavailable') { LM.say('The file could not be saved: ' + (e.message || e.code)); return false; } }
+    const inFrame = window.self !== window.top && window.claude;
+    const a = h('a', { href: URL.createObjectURL(new Blob([data], { type: mime || 'application/octet-stream' })), download: name }); document.body.append(a); a.click(); a.remove();
+    if (inFrame) LM.say('Saving files is not available in this view. Open the dashboard from the downloaded copy or your own site to save files.');
+    return true;
   };
 
   /* ---------- charts ---------- */
