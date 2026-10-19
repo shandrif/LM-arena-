@@ -5,7 +5,7 @@
 
   /** cfg: {dept, label, spec, existing:[datasets], build(parsed,tpl,ov), checks(parsed,ds,tpl,ov,rf,existing), facts(ds), learn(tpl,ds,ov), onSaved(rec)} */
   LM.runUpload = async (file, cfg) => {
-    let rf; try { rf = await LM.readFile(file); } catch (e) { return alert(e.message); }
+    let rf; try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
     const base = { dept: cfg.dept, colAliases: {}, sheetNames: {} };
     const tpl = { ...base, ...((await LM.db.get('templates', cfg.dept)) || {}) };
     const ov = { sheets: {}, cols: {} };

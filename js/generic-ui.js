@@ -85,7 +85,7 @@
       const versions = (n) => all.filter((d) => d.name === n).sort((a, b) => b.version - a.version);
 
       async function upload(file) {
-        let rf; try { rf = await LM.readFile(file); } catch (e) { return alert(e.message); }
+        let rf; try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
         if (id === 'others' && LM.realestate && LM.realestate.detect(rf.wb)) return LM.realestateUI.upload(rf, { sets: reSets, done: async (rid) => { reCur = rid; selName = REV; await load(); draw(); }, reload: async () => { await load(); draw(); } });
         const sheets = rf.wb.SheetNames.map((n) => profileSheet(n, LM.engine.rowsOf(rf.wb, n)));
         const defName = file.name.replace(/\.[^.]+$/, '').replace(/[\s_-]*(\d{1,4}[-_.]\d{1,2}([-_.]\d{1,4})?|week\s*\d+|wk\s*\d+|w\d+)[\s_-]*/gi, ' ').trim() || file.name;
@@ -136,7 +136,7 @@
             h('select', { class: 'sel', onchange: (e) => { selVer = e.target.value; chartCfg = null; draw(); } }, vs.map((v) => h('option', { value: v.id, selected: v.id === ds.id }, `Version ${v.version} · ${v.uploadedAt.slice(0, 10)} · ${v.fileName}`))),
             ds.sheets.length > 1 ? h('select', { class: 'sel', onchange: (e) => { selSheet = +e.target.value; chartCfg = null; draw(); } }, ds.sheets.map((s, i) => h('option', { value: i, selected: i === selSheet }, `Sheet: ${s.name}`))) : null,
             h('div', { class: 'spacer' }),
-            h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete version ${ds.version} of "${ds.name}"?`)) { await LM.db.del('datasets', ds.id); await load(); selVer = null; draw(); } } }, 'Delete this version')),
+            h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete version ${ds.version} of "${ds.name}"?`)) { await LM.db.del('datasets', ds.id); await load(); selVer = null; draw(); } } }, 'Delete this version')),
           sheetView(ds.sheets[Math.min(selSheet, ds.sheets.length - 1)]));
       }
 

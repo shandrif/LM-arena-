@@ -18,7 +18,7 @@
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'nep').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
-        let rf; try { rf = await LM.readFile(file); } catch (e) { return alert(e.message); }
+        let rf; try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
         const tpl = { dept: 'nep', ...((await LM.db.get('templates', 'nep')) || {}) }; const ov = {}; const run = () => N.analyze(rf.wb, rf.name, ov, tpl, sets, rf.hash); let res = run();
         const info = () => { const d = res.ds && res.ds.data; const c = res.ds && res.ds.end && d && d.plan ? N.compute(res.ds) : null; return {
           title: `Review before processing: ${rf.name}`, issues: res.issues,
@@ -108,7 +108,7 @@
 
       function uploads() {
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded NEP files'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Plan date', 'File', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))), h('tbody', {}, sets.map((s) => h('tr', {}, h('td', { class: 'l' }, s.end), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')),
-          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete the NEP of ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
+          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the NEP of ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
       await reload();
     },

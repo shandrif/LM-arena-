@@ -21,7 +21,7 @@
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'warehouse').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
-        let rf; try { rf = await LM.readFile(file); } catch (e) { return alert(e.message); }
+        let rf; try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
         const tpl = { dept: 'warehouse', ...((await LM.db.get('templates', 'warehouse')) || {}) }; const ov = {}; const run = () => WM.analyze(rf.wb, rf.name, ov, tpl, sets, rf.hash); let res = run();
         const info = () => { const d = res.ds && res.ds.data; return {
           title: `Review before processing: ${rf.name}`, issues: res.issues,
@@ -194,7 +194,7 @@
 
       function uploads() {
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded warehouse reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Report date', 'File', 'Sections', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))), h('tbody', {}, sets.map((s) => h('tr', {}, h('td', { class: 'l' }, s.end), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, Object.keys(s.data).filter((k) => WM.PARTS.includes(k)).length), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')),
-          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete the report dated ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
+          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the report dated ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
       await reload();
     },

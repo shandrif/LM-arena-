@@ -39,7 +39,7 @@
               h('div', { dir: 'auto', style: 'white-space:pre-wrap;word-break:break-word;' + (n.done ? 'text-decoration:line-through' : '') }, n.text),
               h('div', { class: 'sub', style: 'margin-top:6px' }, h('span', { class: 'pill' }, n.dept || 'General'), ` · added ${when(n.createdAt)}`, n.updatedAt ? ` · edited ${when(n.updatedAt)}` : '', n.done && n.doneAt ? ` · discussed ${when(n.doneAt)}` : '')),
             readOnly ? null : h('div', { style: 'display:flex;gap:6px' }, h('button', { class: 'btn small', onclick: () => { editing = n.id; list(); } }, 'Edit'),
-              h('button', { class: 'btn small danger', onclick: async () => { if (!confirm('Delete this note permanently?')) return; notes = notes.filter((x) => x.id !== n.id); await save(); list(); } }, 'Delete'))));
+              h('button', { class: 'btn small danger', onclick: async () => { if (!await LM.ask('Delete this note permanently?')) return; notes = notes.filter((x) => x.id !== n.id); await save(); list(); } }, 'Delete'))));
       }
       const visible = () => notes.filter((n) => (fState === 'All' || (fState === 'Open' ? !n.done : n.done)) && (fDept === 'All' || (n.dept || 'General') === fDept) && (!q || (n.text + ' ' + (n.dept || '')).toLowerCase().includes(q)));
       function list() {

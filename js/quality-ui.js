@@ -22,7 +22,7 @@
       async function uploadMany(files) { for (const f of files) await uploadOne(f); }
       function uploadOne(file) {
         return new Promise(async (resolve) => {
-          let rf; try { rf = await LM.readFile(file); } catch (e) { alert(e.message); return resolve(); }
+          let rf; try { rf = await LM.readFile(file); } catch (e) { LM.say(e.message); return resolve(); }
           const tpl = { dept: 'quality', ...((await LM.db.get('templates', 'quality')) || {}) };
           const ov = {}; const run = () => Q.analyze(rf.wb, rf.name, ov, tpl, sets, rf.hash, sets);
           let res = run();
@@ -158,7 +158,7 @@
         const l = sets.slice().sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded Quality reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Report', 'Period', 'File', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))),
           h('tbody', {}, l.map((s) => h('tr', {}, h('td', { class: 'l' }, T[s.type].label), h('td', { class: 'l' }, per(s)), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')),
-            h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete this ${T[s.type].label} (${per(s)})?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
+            h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete this ${T[s.type].label} (${per(s)})?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
       await reload();
     },

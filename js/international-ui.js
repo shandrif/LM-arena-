@@ -28,11 +28,11 @@
       async function uploadMany(files) { batchEnd = null; for (const f of files) await uploadOne(f); }
       function uploadOne(file) {
         return new Promise(async (resolve) => {
-          let rf; try { rf = await LM.readBinary(file); } catch (e) { alert(e.message); return resolve(); }
+          let rf; try { rf = await LM.readBinary(file); } catch (e) { LM.say(e.message); return resolve(); }
           const tpl = { dept: 'international', ...((await LM.db.get('templates', 'international')) || {}) }; const ov = {};
           const isPdf = /\.pdf$/i.test(file.name); let res;
           const run = async () => (isPdf ? analyzeCalendar(rf, ov, tpl) : X.analyze(rf.buf, rf.name, ov, tpl, sets, rf.hash, { end: batchEnd || refDate(), nepList: await nepList() }));
-          try { res = await run(); } catch (e) { alert(`“${file.name}” could not be read: ${e.message}`); return resolve(); }
+          try { res = await run(); } catch (e) { LM.say(`“${file.name}” could not be read: ${e.message}`); return resolve(); }
           const facts = () => { const d = res.ds; if (!d) return [['Report', 'Not recognised']]; const f = [['Type', T[res.type].label], ['Date', d.end || '–']]; if (res.type === 'calendar') { const ev = d.data.events; f.push(['Pages', d.data.numPages], ['Events', ev.length], ['B2B / B2C / orders', `${ev.filter((e) => e.kind === 'B2B').length} / ${ev.filter((e) => e.kind === 'B2C').length} / ${ev.filter((e) => e.kind === 'Order').length}`]); } else if (d.data.metrics) f.push(['Market', d.data.market], ['Metrics', d.data.metrics.length], ['Callouts', d.data.callouts.length]); else if (d.data.rows) f.push(['Stores', d.data.rows.length]); else if (d.data.sections) f.push(['Tables', d.data.sections.length], ['Rows', sum(d.data.sections, (s) => s.rows.length)]); return f; };
           const info = () => ({
             title: `Review before processing: ${rf.name}`, facts: facts(), issues: res.issues,
@@ -141,7 +141,7 @@
       function uploads() {
         const l = sets.slice().sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded International files'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Type', 'Date', 'File', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))), h('tbody', {}, l.map((s) => h('tr', {}, h('td', { class: 'l' }, T[s.type].label), h('td', { class: 'l' }, s.start === s.end ? s.end : `${s.start} → ${s.end}`), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')),
-          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete this ${T[s.type].label} (${s.end})?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
+          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete this ${T[s.type].label} (${s.end})?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
       await reload();
     },
