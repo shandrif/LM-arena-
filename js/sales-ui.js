@@ -90,30 +90,53 @@
         if (c.groups[0]) F.push(['Products', `${c.groups[0].name} is ${pct0(c.groups[0].share)} of item sales; top item ${c.items[0].name} (${pct0(c.items[0].share)}).`]);
         const el = h('div', {},
           h('div', { class: 'grid kpis' },
-            kpi('Net sales', num(k.sales), k.hasLy ? h('span', {}, delta(k.yoy), ' vs LY') : 'SAR'),
-            kpi('Last year', k.hasLy ? num(k.lySales) : '–', 'same dates'),
-            kpi('Transactions', num(k.bills), k.hasLy ? h('span', {}, delta(k.lyBills ? k.bills / k.lyBills - 1 : null), ' vs LY') : 'bills'),
-            kpi('Avg check', num2(k.avg), 'SAR per transaction'),
+            kpi('Net sales', num(k.sales), k.hasLy ? h('span', {}, `LY ${num(k.lySales)} · `, delta(k.yoy)) : 'SAR'),
+            kpi('Transactions', num(k.bills), k.hasLy ? h('span', {}, `LY ${num(k.lyBills)} · `, delta(k.billsYoy)) : 'bills'),
+            kpi('Avg check', num2(k.avg), k.hasLy && k.lyAvg ? h('span', {}, `LY ${num2(k.lyAvg)} · `, delta(k.avgYoy)) : 'SAR per transaction'),
             kpi('Branches trading', num(k.branches), k.hasLy ? `${k.lyBranches} last year` : ''),
             kpi('Like-for-like sales', k.lflSales == null ? '–' : delta(k.lflSales), `${k.lflCount} branches both years`),
             kpi('Like-for-like traffic', k.lflTraffic == null ? '–' : delta(k.lflTraffic), 'same branches')),
+          k.hasLy ? compareCard(c) : h('div', { class: 'banner', style: 'margin-bottom:12px' }, 'This report has no last-year data, so no year-on-year comparison can be shown.'),
           h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Key findings'), h('ul', { class: 'findings' }, F.map(([a, b]) => h('li', {}, h('b', {}, a + ': '), b)))),
-          h('div', { class: 'grid two', style: 'margin-bottom:12px' }, h('div', { class: 'card' }, h('h3', {}, 'Daily net sales'), h('div', { class: 'chart', id: 'c1' })), h('div', { class: 'card' }, h('h3', {}, 'Top 10 branches'), h('div', { class: 'chart', id: 'c2' }))),
+          h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily net sales: this year vs last year', 'c1'), chartCard('Daily transactions: this year vs last year', 'c4')),
+          h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily average check: this year vs last year', 'c5'), chartCard('Average sales by weekday: this year vs last year', 'c6')),
+          h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Top 10 branches: net sales this year vs last year', 'c2'), chartCard('Top 10 branches: average check this year vs last year', 'c7')),
           c.groups.length ? h('div', { class: 'card' }, h('h3', {}, 'Item group share of sales'), h('div', { class: 'chart', id: 'c3' })) : null);
-        setTimeout(() => { dailyChart(el.querySelector('#c1'), c); topBranches(el.querySelector('#c2'), c); if (c.groups.length) groupChart(el.querySelector('#c3'), c); });
+        setTimeout(() => { dailyChart(el.querySelector('#c1'), c); topBranches(el.querySelector('#c2'), c); if (c.groups.length) groupChart(el.querySelector('#c3'), c); dailyMetric(el.querySelector('#c4'), c, 'bills', 'lyBills', 'Transactions'); dailyMetric(el.querySelector('#c5'), c, 'avg', 'lyAvg', 'Average check'); weekdayChart(el.querySelector('#c6'), c); topBranchAvg(el.querySelector('#c7'), c); });
         return el;
       }
-      function dailyChart(host, c) {
-        const ac = LM.css('--accent'), ly = LM.css('--ly');
+      const chartCard = (t, id) => h('div', { class: 'card' }, h('h3', {}, t), h('div', { class: 'chart', id }));
+      const ty$ = () => LM.css('--accent'), ly$ = () => LM.css('--ly');
+      const diff = (a, b, f = num) => (a == null || b == null ? '–' : `${a - b > 0 ? '+' : ''}${f(a - b)}`);
+      function compareCard(c) {
+        const k = c.k; const nd = k.matchedDays || 1; const partial = k.matchedDays < k.totalDays;
+        const rows = [['Net sales (SAR)', k.sales, k.lySales, num], ['Transactions', k.bills, k.lyBills, num], ['Average check (SAR)', k.avg, k.lyAvg, num2], ['Branches trading', k.branches, k.lyBranches, num], ['Average sales per branch (SAR)', k.branches ? k.sales / k.branches : null, k.lyBranches ? k.lySales / k.lyBranches : null, num], ['Average daily sales (SAR)', c.days.length ? k.sales / c.days.length : null, c.lyDays.length ? k.lySales / c.lyDays.length : null, num], ['Average daily transactions', c.days.length ? k.bills / c.days.length : null, c.lyDays.length ? k.lyBills / c.lyDays.length : null, num]];
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'This year vs last year'),
+          h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Metric', 'This year', 'Last year', 'Change', 'Change %'].map((t, i) => h('th', { class: i ? '' : 'l' }, t)))),
+            h('tbody', {}, rows.map(([l, a, b, f]) => h('tr', {}, h('td', { class: 'l' }, l), h('td', {}, a == null ? '–' : f(a)), h('td', {}, b == null ? '–' : f(b)), h('td', {}, diff(a, b, f)), h('td', {}, a != null && b ? delta(a / b - 1) : '–'))))),
+          partial ? h('div', { class: 'sub', style: 'margin-top:6px' }, `Last-year data matches only ${k.matchedDays} of ${k.totalDays} days; on those matched days sales are ${k.mLySales ? delta(k.mSales / k.mLySales - 1) : '–'} and transactions ${k.mLyBills ? delta(k.mBills / k.mLyBills - 1) : '–'}.`) : null);
+      }
+      function dailyChart(host, c) { dailyMetric(host, c, 'sales', 'sales', 'Net sales'); }
+      function dailyMetric(host, c, key, lyKey, name) {
+        const lyv = (d) => (d.ly ? (lyKey === 'sales' ? d.ly.sales : lyKey === 'lyBills' ? d.ly.bills : d.lyAvg) : null); const fmt = key === 'avg' ? num2 : compact;
         LM.chart(host, { type: 'line', data: { labels: c.days.map((d) => dayLabel(d.day)), datasets: [
-          { label: 'This year', data: c.days.map((d) => d.sales), borderColor: ac, backgroundColor: ac, tension: 0, pointRadius: 3 },
-          ...(c.k.hasLy ? [{ label: 'Last year', data: c.days.map((d) => (d.ly ? d.ly.sales : null)), borderColor: ly, backgroundColor: ly, borderDash: [5, 4], tension: 0, pointRadius: 2 }] : [])] },
-          options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: (v) => compact(v) } } } } });
+          { label: 'This year', data: c.days.map((d) => d[key]), borderColor: ty$(), backgroundColor: ty$(), tension: 0, pointRadius: 3 },
+          ...(c.k.hasLy ? [{ label: 'Last year', data: c.days.map(lyv), borderColor: ly$(), backgroundColor: ly$(), borderDash: [5, 4], tension: 0, pointRadius: 2 }] : [])] },
+          options: { plugins: { legend: { position: 'bottom' }, tooltip: { callbacks: { label: (i) => `${i.dataset.label}: ${key === 'avg' ? num2(i.raw) : num(i.raw)}` } } }, scales: { y: { ticks: { callback: (v) => fmt(v) } } } } });
+      }
+      function weekdayChart(host, c) {
+        if (!c.dow.length) return host.replaceChildren(h('span', { class: 'sub' }, 'No matching last-year days.'));
+        LM.chart(host, { type: 'bar', data: { labels: c.dow.map((w) => w.name), datasets: [{ label: 'This year', data: c.dow.map((w) => w.sales / w.n), backgroundColor: ty$() }, { label: 'Last year', data: c.dow.map((w) => w.lySales / w.n), backgroundColor: ly$() }] }, options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { ticks: { callback: (v) => compact(v) } } } } });
       }
       function topBranches(host, c) {
         const t = c.branches.filter((b) => b.sales > 0).slice(0, 10);
-        LM.chart(host, { type: 'bar', data: { labels: t.map((b) => b.name.slice(0, 26)), datasets: [{ data: t.map((b) => b.sales), backgroundColor: LM.css('--accent') }] },
-          options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: (v) => compact(v) } } } } });
+        LM.chart(host, { type: 'bar', data: { labels: t.map((b) => b.name.slice(0, 26)), datasets: [{ label: 'This year', data: t.map((b) => b.sales), backgroundColor: ty$() }, ...(c.k.hasLy ? [{ label: 'Last year', data: t.map((b) => b.lySales || null), backgroundColor: ly$() }] : [])] },
+          options: { indexAxis: 'y', plugins: { legend: { position: 'bottom' } }, scales: { x: { ticks: { callback: (v) => compact(v) } } } } });
+      }
+      function topBranchAvg(host, c) {
+        const t = c.branches.filter((b) => b.sales > 0).slice(0, 10);
+        LM.chart(host, { type: 'bar', data: { labels: t.map((b) => b.name.slice(0, 26)), datasets: [{ label: 'This year', data: t.map((b) => b.avg), backgroundColor: ty$() }, ...(c.k.hasLy ? [{ label: 'Last year', data: t.map((b) => b.lyAvg), backgroundColor: ly$() }] : [])] },
+          options: { indexAxis: 'y', plugins: { legend: { position: 'bottom' } } } });
       }
       function groupChart(host, c) {
         const g = c.groups.slice(0, 8); const rest = c.groups.slice(8).reduce((s, x) => s + x.sales, 0);
@@ -124,21 +147,23 @@
 
       function days(ds, c) {
         const cols = [{ k: 'day', label: 'Date', l: 1 }, { k: 'dow', label: 'Day', l: 1 }, { k: 'sales', label: 'Net sales', fmt: num }, { k: 'bills', label: 'Transactions', fmt: num }, { k: 'avg', label: 'Avg check', fmt: num2 },
-          { k: 'lyDay', label: 'LY date', l: 1 }, { k: 'lySales', label: 'LY sales', fmt: num }, { k: 'lyBills', label: 'LY transactions', fmt: num }, { k: 'yoy', label: 'Sales vs LY', fmt: (v) => delta(v) }, { k: 'trafficYoy', label: 'Traffic vs LY', fmt: (v) => delta(v) }];
+          { k: 'lyDay', label: 'LY date', l: 1 }, { k: 'lySales', label: 'LY sales', fmt: num }, { k: 'lyBills', label: 'LY transactions', fmt: num }, { k: 'yoy', label: 'Sales vs LY', fmt: (v) => delta(v) }, { k: 'trafficYoy', label: 'Traffic vs LY', fmt: (v) => delta(v) }, { k: 'lyAvg', label: 'LY avg check', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'avgYoy', label: 'Avg check vs LY', fmt: (v) => delta(v) }];
+        const k0 = c.k.hasLy;
         const rows = c.days.map((d) => ({ ...d, lyDay: d.ly ? d.ly.day : null, lySales: d.ly ? d.ly.sales : null, lyBills: d.ly ? d.ly.bills : null }));
-        const el = h('div', {}, h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Daily net sales vs last year'), h('div', { class: 'chart', id: 'c1' })), LM.table(cols, rows, { sort: 'day', dir: 1 }));
-        setTimeout(() => dailyChart(el.querySelector('#c1'), c)); return el;
+        const el = h('div', {}, k0 ? compareCard(c) : null, h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily net sales vs last year', 'c1'), chartCard('Daily transactions vs last year', 'c4')), h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily average check vs last year', 'c5'), chartCard('Average sales by weekday vs last year', 'c6')), LM.table(cols, rows, { sort: 'day', dir: 1 }));
+        setTimeout(() => { dailyChart(el.querySelector('#c1'), c); dailyMetric(el.querySelector('#c4'), c, 'bills', 'lyBills', 'Transactions'); dailyMetric(el.querySelector('#c5'), c, 'avg', 'lyAvg', 'Average check'); weekdayChart(el.querySelector('#c6'), c); }); return el;
       }
 
       function branches(ds, c) {
         const cols = [{ k: 'rank', label: '#', fmt: (v) => v || '–' }, { k: 'name', label: 'Branch', l: 1, cls: 'wrap' }, { k: 'sales', label: 'Net sales', fmt: num }, { k: 'bills', label: 'Transactions', fmt: num }, { k: 'avg', label: 'Avg check', fmt: num2 },
-          { k: 'share', label: 'Share', fmt: pct0 }, { k: 'lySales', label: 'LY sales', fmt: (v) => (v ? num(v) : '–') }, { k: 'yoy', label: 'Sales vs LY', fmt: (v) => delta(v) }, { k: 'trafficYoy', label: 'Traffic vs LY', fmt: (v) => delta(v) },
+          { k: 'share', label: 'Share', fmt: pct0 }, { k: 'lySales', label: 'LY sales', fmt: (v) => (v ? num(v) : '–') }, { k: 'yoy', label: 'Sales vs LY', fmt: (v) => delta(v) }, { k: 'trafficYoy', label: 'Traffic vs LY', fmt: (v) => delta(v) }, { k: 'lyBills', label: 'LY transactions', fmt: (v) => (v ? num(v) : '–') }, { k: 'lyAvg', label: 'LY avg check', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'avgYoy', label: 'Avg check vs LY', fmt: (v) => delta(v) },
           { k: 'status', label: 'Status', l: 1, fmt: (v) => h('span', { class: 'pill ' + (v === 'New this year' ? 'new' : /No sales/.test(v) ? 'closed' : '') }, v) }];
         const search = h('input', { type: 'search', placeholder: 'Search branch…' }); const stat = h('select', { class: 'sel' }, ['All statuses', ...new Set(c.branches.map((b) => b.status))].map((x) => h('option', {}, x)));
         let tbl = LM.table(cols, c.branches, { sort: 'rank', dir: 1 });
         const apply = () => { const q = search.value.toLowerCase(); tbl.redraw(c.branches.filter((b) => b.name.toLowerCase().includes(q) && (stat.value === 'All statuses' || b.status === stat.value))); };
         search.oninput = apply; stat.onchange = apply;
-        return h('div', {}, h('div', { class: 'tools' }, search, stat, h('button', { class: 'btn small', onclick: () => LM.csv(cols, c.branches, `sales-branches-${ds.start}.csv`) }, 'Export CSV')), tbl);
+        const el = h('div', {}, h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Top 10 branches: net sales vs last year', 'c2'), chartCard('Top 10 branches: average check vs last year', 'c7')), h('div', { class: 'tools' }, search, stat, h('button', { class: 'btn small', onclick: () => LM.csv(cols, c.branches, `sales-branches-${ds.start}.csv`) }, 'Export CSV')), tbl);
+        setTimeout(() => { topBranches(el.querySelector('#c2'), c); topBranchAvg(el.querySelector('#c7'), c); }); return el;
       }
 
       function groups(ds, c) {

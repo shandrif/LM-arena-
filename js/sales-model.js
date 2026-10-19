@@ -193,6 +193,7 @@
       b.share = total ? b.sales / total : 0;
       b.yoy = b.lySales > 0 && b.sales > 0 ? b.sales / b.lySales - 1 : null;
       b.trafficYoy = b.lyBills > 0 && b.sales > 0 ? b.bills / b.lyBills - 1 : null;
+      b.lyAvg = b.lyBills ? b.lySales / b.lyBills : null; b.avgYoy = b.lyAvg && b.avg ? b.avg / b.lyAvg - 1 : null;
       b.status = b.sales > 0 && b.lySales > 0 ? 'Trading both years' : b.sales > 0 ? (ds.ly.length ? 'New this year' : 'Trading') : b.lySales > 0 ? 'No sales this year' : 'No sales';
     });
     branches.sort((a, b) => b.sales - a.sales);
@@ -214,6 +215,7 @@
       d.ly = ly || null;
       d.yoy = ly && ly.sales ? d.sales / ly.sales - 1 : null;
       d.trafficYoy = ly && ly.bills ? d.bills / ly.bills - 1 : null;
+      d.lyAvg = ly && ly.bills ? ly.sales / ly.bills : null; d.avgYoy = d.lyAvg && d.avg ? d.avg / d.lyAvg - 1 : null;
     });
 
     // item groups / items
@@ -239,8 +241,16 @@
       newSales: sum(trading.filter((b) => b.status === 'New this year'), (b) => b.sales),
       noSales: branches.filter((b) => b.status === 'No sales this year').map((b) => b.name),
       hasLy: ds.ly.length > 0,
+      lyAvg: lyBillsTot ? lySalesTot / lyBillsTot : null,
     };
-    return { k, branches, days, lyDays, groups: groups.arr, items: itemsR.arr, itemsTotal: itemsR.total };
+    k.avgYoy = k.lyAvg && k.avg ? k.avg / k.lyAvg - 1 : null; k.billsYoy = lyBillsTot ? bills / lyBillsTot - 1 : null;
+    // same-date comparison (only days that have a last-year match) so partial coverage does not distort the comparison
+    const matched = days.filter((d) => d.ly); k.matchedDays = matched.length; k.totalDays = days.length;
+    k.mSales = sum(matched, (d) => d.sales); k.mLySales = sum(matched, (d) => d.ly.sales); k.mBills = sum(matched, (d) => d.bills); k.mLyBills = sum(matched, (d) => d.ly.bills);
+    // weekday profile, this year vs the matching last-year dates
+    const W = DOW.map((n) => ({ name: n, n: 0, sales: 0, bills: 0, lySales: 0, lyBills: 0 })); matched.forEach((d) => { const w = W[dayOfWeek(d.day)]; if (!w) return; w.n++; w.sales += d.sales; w.bills += d.bills; w.lySales += d.ly.sales; w.lyBills += d.ly.bills; });
+    const dow = W.filter((w) => w.n).map((w) => ({ ...w, avg: w.bills ? w.sales / w.bills : null, lyAvg: w.lyBills ? w.lySales / w.lyBills : null, yoy: w.lySales ? w.sales / w.lySales - 1 : null }));
+    return { k, branches, days, lyDays, dow, groups: groups.arr, items: itemsR.arr, itemsTotal: itemsR.total };
   }
 
   LM.sales = { spec, defaultTemplate, build, checks, compute, readSummaryTiles, branchKey, addYears, DOW };
