@@ -89,8 +89,8 @@
       approve.onclick = async () => { approve.disabled = true; try { await o.onApprove(); close(); } catch (e) { alert(e.message); approve.disabled = false; } };
       const list = ['error', 'warn', 'info'].flatMap((lv) => issues.filter((i) => i.level === lv)).map((i) => {
         let fixEl = null;
-        if (i.fix && i.fix.kind === 'date') {
-          const inp = h('input', { type: 'date', class: 'sel' });
+        if (i.fix && (i.fix.kind === 'date' || i.fix.kind === 'number')) {
+          const inp = h('input', { type: i.fix.kind, step: 'any', class: 'sel' });
           fixEl = h('div', { class: 'fix' }, inp, h('button', { class: 'btn small', onclick: () => inp.value && o.onFix(i.fix, inp.value) }, i.fix.label || 'Apply'));
         } else if (i.fix && i.fix.type !== 'alias' && i.fix.options && i.fix.options.length) {
           const sel = h('select', { class: 'sel' }, h('option', { value: '' }, 'Choose…'), i.fix.options.map((x) => h('option', { value: x, selected: x === i.fix.suggest }, x)));

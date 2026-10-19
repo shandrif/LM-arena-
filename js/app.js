@@ -4,7 +4,7 @@
   const DRAFT = 'No custom summary for this department yet. Files you upload are checked and summarised automatically; share the weekly report with Claude to build the dedicated KPIs and format checks for this tab.';
   const generic = (id, l) => LM.makeGenericDept(id, l, DRAFT);
   const depts = [
-    LM.depts.sales, LM.depts.wastage, generic('international', 'International'), generic('nep', 'NEP'), generic('procurement', 'Procurement'),
+    LM.depts.sales, LM.depts.wastage, generic('international', 'International'), generic('nep', 'NEP'), LM.depts.procurement,
     LM.depts.quality, generic('roasting', 'Roasting'), generic('training', 'Training'), generic('warehouse', 'Warehouse'),
     LM.makeGenericDept('others', 'Others', null),
   ];
