@@ -89,7 +89,10 @@
       approve.onclick = async () => { approve.disabled = true; try { await o.onApprove(); close(); } catch (e) { alert(e.message); approve.disabled = false; } };
       const list = ['error', 'warn', 'info'].flatMap((lv) => issues.filter((i) => i.level === lv)).map((i) => {
         let fixEl = null;
-        if (i.fix && i.fix.type !== 'alias' && i.fix.options && i.fix.options.length) {
+        if (i.fix && i.fix.kind === 'date') {
+          const inp = h('input', { type: 'date', class: 'sel' });
+          fixEl = h('div', { class: 'fix' }, inp, h('button', { class: 'btn small', onclick: () => inp.value && o.onFix(i.fix, inp.value) }, i.fix.label || 'Apply'));
+        } else if (i.fix && i.fix.type !== 'alias' && i.fix.options && i.fix.options.length) {
           const sel = h('select', { class: 'sel' }, h('option', { value: '' }, 'Choose…'), i.fix.options.map((x) => h('option', { value: x, selected: x === i.fix.suggest }, x)));
           fixEl = h('div', { class: 'fix' }, sel, h('button', { class: 'btn small', onclick: () => sel.value && o.onFix(i.fix, sel.value) }, i.fix.label || 'Apply'));
         } else if (i.fix && i.fix.type === 'alias')
@@ -150,13 +153,13 @@
   LM.palette = () => ['#7a4a2b', '#2c7a7b', '#c2851f', '#5b6fb5', '#a8456b', '#6b8e3d', '#8a8a8a', '#c25b3a'].map((c, i) => c);
 
   /* ---------- drag & drop on an element ---------- */
-  LM.dropZone = (el, onFile) => {
+  LM.dropZone = (el, onFile, multi = false) => {
     ['dragenter', 'dragover'].forEach((ev) => el.addEventListener(ev, (e) => { e.preventDefault(); el.classList.add('drop-on'); }));
     ['dragleave', 'drop'].forEach((ev) => el.addEventListener(ev, (e) => { e.preventDefault(); el.classList.remove('drop-on'); }));
-    el.addEventListener('drop', (e) => { const f = e.dataTransfer.files[0]; if (f) onFile(f); });
+    el.addEventListener('drop', (e) => { const fs = [...e.dataTransfer.files]; if (fs.length) onFile(multi ? fs : fs[0]); });
   };
-  LM.filePicker = (onFile, label = 'Upload file') => {
-    const inp = h('input', { type: 'file', accept: '.xlsx,.xls,.xlsm,.csv', style: 'display:none', onchange: () => { if (inp.files[0]) onFile(inp.files[0]); inp.value = ''; } });
+  LM.filePicker = (onFile, label = 'Upload file', multiple = false) => {
+    const inp = h('input', { type: 'file', multiple, accept: '.xlsx,.xls,.xlsm,.csv,.ods', style: 'display:none', onchange: () => { if (inp.files.length) onFile(multiple ? [...inp.files] : inp.files[0]); inp.value = ''; } });
     return h('span', {}, inp, h('button', { class: 'btn primary', onclick: () => inp.click() }, '⬆ ' + label));
   };
 
