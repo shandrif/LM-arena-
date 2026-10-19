@@ -105,7 +105,7 @@
       const sync = () => (approve.disabled = n('error') > 0 || (n('warn') > 0 && !ack.checked));
       ack.addEventListener('change', sync);
       const close = () => ov.remove();
-      approve.onclick = async () => { approve.disabled = true; try { await o.onApprove(); close(); } catch (e) { alert(e.message); approve.disabled = false; } };
+      approve.onclick = async () => { approve.disabled = true; try { await o.onApprove(); close(); } catch (e) { LM.say(e.message); approve.disabled = false; } };
       const list = [...(dupIssue ? [dupIssue] : []), ...['error', 'warn', 'info'].flatMap((lv) => issues.filter((i) => i.level === lv && i !== dupIssue))].map((i) => {
         let fixEl = null;
         if (i.fix && (i.fix.kind === 'date' || i.fix.kind === 'number')) {
@@ -181,6 +181,16 @@
     const inp = h('input', { type: 'file', multiple, accept, style: 'display:none', onchange: () => { if (inp.files.length) onFile(multiple ? [...inp.files] : inp.files[0]); inp.value = ''; } });
     return h('span', {}, inp, h('button', { class: 'btn primary', onclick: () => inp.click() }, '⬆ ' + label));
   };
+
+
+  /* In-page replacements for confirm() / alert() (those are blocked in some embedded viewers and block the page elsewhere). */
+  const dialog = (msg, buttons) => new Promise((resolve) => {
+    const ov = h('div', { class: 'overlay', style: 'z-index:90' }); const done = (v) => { ov.remove(); resolve(v); };
+    ov.append(h('div', { class: 'modal', style: 'max-width:480px;max-height:none' }, h('div', { class: 'mb', style: 'white-space:pre-wrap' }, String(msg)), h('div', { class: 'mf' }, h('div', { class: 'spacer' }), ...buttons(done))));
+    document.body.append(ov);
+  });
+  LM.ask = (msg) => dialog(msg, (done) => [h('button', { class: 'btn', onclick: () => done(false) }, 'Cancel'), h('button', { class: 'btn primary', onclick: () => done(true) }, 'OK')]);
+  LM.say = (msg) => { dialog(msg, (done) => [h('button', { class: 'btn primary', onclick: () => done() }, 'OK')]); };
 
   Object.assign(LM, { h, num, num2, pct, pct0, compact, delta, css, dayLabel, shortName, toast });
 })();

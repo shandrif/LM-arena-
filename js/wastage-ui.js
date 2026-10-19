@@ -115,7 +115,7 @@
       function uploads() {
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded wastage reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Period', 'File', 'Uploaded', 'Lines', ''].map((t) => h('th', { class: 'l' }, t)))),
           h('tbody', {}, sets.map((s) => h('tr', {}, h('td', { class: 'l' }, `${s.start} → ${s.end}`), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')), h('td', { class: 'l' }, num(s.lines.length)),
-            h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete the report for ${s.start} → ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
+            h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the report for ${s.start} → ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
       await reload();
     },

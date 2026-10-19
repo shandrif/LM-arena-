@@ -111,7 +111,7 @@
   }
 
   function uploads(ds, c) {
-    return LM.table([{ k: 'end', label: 'Report month', l: 1, fmt: (v) => v.slice(0, 7) }, { k: 'fileName', label: 'File', l: 1 }, { k: 'n', label: 'Contracts', fmt: num }, { k: 'uploadedAt', label: 'Uploaded', l: 1, fmt: (v) => v.slice(0, 16).replace('T', ' ') }, { k: 'x', label: '', fmt: (v, r) => h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete the ${r.end.slice(0, 7)} real-estate report?`)) { await LM.db.del('datasets', r.id); ctx_reload(); } } }, 'Delete') }], uploads.sets.map((s) => ({ ...s, n: s.data.rows.length })), { sort: 'end' });
+    return LM.table([{ k: 'end', label: 'Report month', l: 1, fmt: (v) => v.slice(0, 7) }, { k: 'fileName', label: 'File', l: 1 }, { k: 'n', label: 'Contracts', fmt: num }, { k: 'uploadedAt', label: 'Uploaded', l: 1, fmt: (v) => v.slice(0, 16).replace('T', ' ') }, { k: 'x', label: '', fmt: (v, r) => h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the ${r.end.slice(0, 7)} real-estate report?`)) { await LM.db.del('datasets', r.id); ctx_reload(); } } }, 'Delete') }], uploads.sets.map((s) => ({ ...s, n: s.data.rows.length })), { sort: 'end' });
   }
   let ctx_reload = () => {};
 

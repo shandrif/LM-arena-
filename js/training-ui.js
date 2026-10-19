@@ -27,8 +27,8 @@
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'training').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
-        let rf; try { rf = await LM.readBinary(file); } catch (e) { return alert(e.message); }
-        if (!/\.pptx$/i.test(file.name)) return alert('Please upload the weekly report as a PowerPoint (.pptx). Old .ppt files must be saved as .pptx first.');
+        let rf; try { rf = await LM.readBinary(file); } catch (e) { return LM.say(e.message); }
+        if (!/\.pptx$/i.test(file.name)) return LM.say('Please upload the weekly report as a PowerPoint (.pptx). Old .ppt files must be saved as .pptx first.');
         const tpl = { dept: 'training', ...((await LM.db.get('templates', 'training')) || {}) }; const ov = {}; let res = await TR.analyze(rf.buf, rf.name, ov, tpl, sets, rf.hash);
         const info = () => { const d = res.ds && res.ds.data; return {
           title: `Review before processing: ${rf.name}`, issues: res.issues,
@@ -134,7 +134,7 @@
 
       function uploads() {
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded training reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Week', 'File', 'Slides', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))), h('tbody', {}, sets.map((s) => h('tr', {}, h('td', { class: 'l' }, `${s.start} → ${s.end}`), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.data.slides.length), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')),
-          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete the training week ${s.start} → ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
+          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the training week ${s.start} → ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
       await reload();
     },

@@ -15,7 +15,7 @@
 
       async function uploadMany(files) { for (const f of [].concat(files)) await upload(f); }
       function upload(file) { return new Promise(async (resolve) => {
-        let rf; try { rf = await LM.readFile(file); } catch (e) { alert(e.message); return resolve(); }
+        let rf; try { rf = await LM.readFile(file); } catch (e) { LM.say(e.message); return resolve(); }
         if (LM.roastSamples.detect(rf.wb)) return uploadSamples(rf, resolve);
         const tpl = { dept: 'roasting', ...((await LM.db.get('templates', 'roasting')) || {}) }; const ov = {}; const run = () => LM.roasting.analyze(rf.wb, rf.name, ov, tpl, sets, rf.hash); let res = run();
         const info = () => { const d = res.ds && res.ds.data; return {
@@ -133,9 +133,9 @@
           LM.chart(el.querySelector('#s2'), { type: 'bar', data: { labels: c.weeks.map((w) => 'wk ' + w[0].slice(5)), datasets: [{ label: 'Approved', data: c.weeks.map((w) => w[1].ok), backgroundColor: '#1d7a46' }, { label: 'Other', data: c.weeks.map((w) => w[1].n - w[1].ok), backgroundColor: '#999' }] }, options: { plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true }, y: { stacked: true, ticks: { precision: 0 } } } } }); }); return el;
       }
       function uploads() {
-        const smTbl = smp.length ? h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Uploaded green bean sample reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Period', 'File', 'Samples', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))), h('tbody', {}, smp.map((s) => h('tr', {}, h('td', { class: 'l' }, s.label), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.data.rows.length), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')), h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete the ${s.label} sample report?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete'))))))) : null;
+        const smTbl = smp.length ? h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Uploaded green bean sample reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Period', 'File', 'Samples', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))), h('tbody', {}, smp.map((s) => h('tr', {}, h('td', { class: 'l' }, s.label), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.data.rows.length), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')), h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the ${s.label} sample report?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete'))))))) : null;
         return h('div', {}, smTbl, h('div', { class: 'card' }, h('h3', {}, 'Uploaded roasting reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Report date', 'File', 'Weeks', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))), h('tbody', {}, sets.map((s) => h('tr', {}, h('td', { class: 'l' }, s.end), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.data.weekly ? s.data.weekly.length : 0), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')),
-          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete the report dated ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete'))))))));
+          h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the report dated ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete'))))))));
       }
       await reload();
     },

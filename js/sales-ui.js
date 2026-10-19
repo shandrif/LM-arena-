@@ -14,7 +14,7 @@
       /* ---------- upload ---------- */
       async function upload(file) {
         let rf;
-        try { rf = await LM.readFile(file); } catch (e) { return alert(e.message); }
+        try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
         const tpl = await template();
         const ov = { sheets: {}, cols: {}, groupAliases: {} };
         const run = () => {
@@ -193,7 +193,7 @@
       function uploads() {
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded sales reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Period', 'File', 'Uploaded', 'Rows', ''].map((t) => h('th', { class: 'l' }, t)))),
           h('tbody', {}, sets.map((s) => h('tr', {}, h('td', { class: 'l' }, `${s.start} → ${s.end}`), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')), h('td', { class: 'l' }, `${s.ty.length} / ${s.ly.length} / ${s.items.length}`),
-            h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete the report for ${s.start} → ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
+            h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the report for ${s.start} → ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
 
       draw();

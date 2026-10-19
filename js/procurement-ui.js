@@ -21,7 +21,7 @@
       async function uploadMany(files) { for (const f of files) await uploadOne(f); }
       function uploadOne(file) {
         return new Promise(async (resolve) => {
-          let rf; try { rf = await LM.readFile(file); } catch (e) { alert(e.message); return resolve(); }
+          let rf; try { rf = await LM.readFile(file); } catch (e) { LM.say(e.message); return resolve(); }
           const ov = {}; const run = () => P.analyze(rf.wb, rf.name, ov, tpl, sets, rf.hash); let res = run();
           const facts = () => { const d = res.ds; if (!d) return [['Report type', 'Not recognised']]; const R = d.data.rows; return [['Report type', T[res.type].label], ['As of', d.end || '–'], [res.type === 'pr' ? 'Lines' : 'Orders', num(R.length)], res.type === 'pr' ? ['Requisitions', num(new Set(R.map((x) => x.req)).size)] : ['Suppliers', num(new Set(R.map((x) => x.supplier)).size)]]; };
           const info = () => ({
@@ -109,7 +109,7 @@
         const l = sets.slice().sort((a, b) => (a.uploadedAt < b.uploadedAt ? 1 : -1));
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded procurement snapshots'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Report', 'As of', 'Rows', 'File', 'Uploaded', ''].map((t) => h('th', { class: 'l' }, t)))),
           h('tbody', {}, l.map((s) => h('tr', {}, h('td', { class: 'l' }, T[s.type].label), h('td', { class: 'l' }, s.end), h('td', { class: 'l' }, s.data.rows.length), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')),
-            h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (confirm(`Delete this ${T[s.type].label} snapshot (${s.end})?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
+            h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete this ${T[s.type].label} snapshot (${s.end})?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
       await reload();
     },
