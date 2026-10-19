@@ -17,7 +17,7 @@
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 button, select, input { font: inherit; color: inherit; }
 header.top { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
-.bar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+.bar { display: flex; align-items: center; gap: 8px 12px; padding: 10px 16px; flex-wrap: wrap; }
 .brand { font-weight: 700; font-size: 16px; letter-spacing: .2px; }
 .spacer { flex: 1; }
 nav.tabs { display: flex; gap: 2px; overflow-x: auto; padding: 0 12px; scrollbar-width: thin; }
@@ -97,3 +97,5 @@ label.ck { display: flex; gap: 6px; align-items: center; }
 .dslist button { text-align: left; }
 .dslist button.on { border-color: var(--accent); background: var(--accent-soft); }
 .snap .btn.danger { display: none; }
+.card > table.t { display: block; max-width: 100%; overflow-x: auto; }
+@media (max-width: 600px) { .brand { width: 100%; } main { padding-left: 12px; padding-right: 12px; } }
