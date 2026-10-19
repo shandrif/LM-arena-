@@ -179,28 +179,29 @@
       ctx.save(); ctx.font = '600 11px system-ui, sans-serif'; ctx.fontVariantNumeric = 'tabular-nums';
       const text = (t, x, y, align, base, color, rot) => { ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot); ctx.textAlign = align; ctx.textBaseline = base; if (color === ink) { ctx.lineWidth = 3; ctx.strokeStyle = halo; ctx.lineJoin = 'round'; ctx.strokeText(t, 0, 0); } ctx.fillStyle = color; ctx.fillText(t, 0, 0); ctx.restore(); };
       const kind = (di) => chart.getDatasetMeta(di).type; const bv = vis.filter((i) => kind(i) === 'bar'), lv = vis.filter((i) => kind(i) === 'line'), pv = vis.filter((i) => kind(i) === 'doughnut' || kind(i) === 'pie');
+      /* Rule of thumb: every bar is labelled when the chart is readable; dense charts (many bars / points) label only the highest, the lowest and the latest value, the rest is in the hover. No rotated text. */
       if (bv.length) {
         const stacked = !!(chart.options.scales && ((chart.options.scales.x && chart.options.scales.x.stacked) || (chart.options.scales.y && chart.options.scales.y.stacked)));
-        const n = chart.data.labels ? chart.data.labels.length : 0; const tot = {}; const bw = bv.length ? chart.getDatasetMeta(bv[0]).data : []; const pitch = !horiz && bw.length > 1 ? Math.abs(bw[1].x - bw[0].x) * 1 : 99; const cap = Math.ceil(n / 30);
+        const n = chart.data.labels ? chart.data.labels.length : 0; const dense = n > 24; const tot = {}; if (bv.length > 1 && !stacked) ctx.font = '600 10px system-ui, sans-serif'; const m0 = chart.getDatasetMeta(bv[0]).data; const pitch = !horiz && m0.length > 1 ? Math.abs(m0[1].x - m0[0].x) : 999; const grouped = bv.length > 1 && !stacked;
         bv.forEach((di) => { const meta = chart.getDatasetMeta(di); const f = fmtFor(di); const ds = chart.data.datasets[di];
-          meta.data.forEach((el, i) => { const pr = meta._parsed[i]; const v = pr ? (horiz ? pr.x : pr.y) : null; if (v == null || !isFinite(v)) return; const P = el.getProps(['x', 'y', 'base', 'width', 'height'], true); const t = f(v);
-            const bg = Array.isArray(ds.backgroundColor) ? ds.backgroundColor[i] : ds.backgroundColor;
+          const vals = meta.data.map((el, i) => ({ i, v: meta._parsed[i] ? (horiz ? meta._parsed[i].x : meta._parsed[i].y) : null })).filter((x) => x.v != null && isFinite(x.v));
+          const keep = new Set(); if (dense && vals.length) { keep.add(vals.reduce((a, b) => (b.v > a.v ? b : a)).i); keep.add(vals.reduce((a, b) => (b.v < a.v ? b : a)).i); keep.add(vals[vals.length - 1].i); }
+          vals.forEach(({ i, v }) => { const el = meta.data[i]; const P = el.getProps(['x', 'y', 'base', 'width', 'height'], true); const t = f(v); const bg = Array.isArray(ds.backgroundColor) ? ds.backgroundColor[i] : ds.backgroundColor;
             if (stacked) { if (v === 0) return; const size = horiz ? Math.abs(P.x - P.base) : Math.abs(P.base - P.y); const tw = ctx.measureText(t).width; const fits = horiz ? size >= tw + 8 : size >= 16 && P.width >= tw + 4;
-              if (fits) text(t, horiz ? (P.x + P.base) / 2 : P.x, horiz ? P.y : (P.y + P.base) / 2, 'center', 'middle', lum(bg) > 0.62 ? '#222' : '#fff');
-              const k = tot[i] || (tot[i] = { sum: 0, pos: null, cnt: 0 }); k.sum += v; k.cnt++; const end = horiz ? P.x : P.y; if (k.pos == null || (horiz ? end > k.pos.v : end < k.pos.v)) k.pos = { v: end, x: P.x, y: P.y, w: P.width, h: P.height }; return; }
-            const tw = ctx.measureText(t).width; const neg = v < 0; if (v === 0 && n > 12) return; const rot = !horiz && P.width < tw; const step = Math.max(cap, horiz ? 1 : Math.ceil((rot ? 13 : tw + 8) / Math.max(pitch, 1))); if (step > 1 && i % step) return;
+              if (fits && !dense) text(t, horiz ? (P.x + P.base) / 2 : P.x, horiz ? P.y : (P.y + P.base) / 2, 'center', 'middle', lum(bg) > 0.62 ? '#222' : '#fff');
+              const k = tot[i] || (tot[i] = { sum: 0, pos: null, cnt: 0 }); k.sum += v; k.cnt++; const end = horiz ? P.x : P.y; if (k.pos == null || (horiz ? end > k.pos.v : end < k.pos.v)) k.pos = { v: end, x: P.x, y: P.y }; return; }
+            if (dense && !keep.has(i)) return; if (v === 0 && n > 12) return; const tw = ctx.measureText(t).width; const neg = v < 0; if (!horiz && !grouped && !dense) { const st = Math.ceil((tw + 6) / pitch); if (st > 1 && i % st) return; }
             if (horiz) text(t, P.x + (neg ? -6 : 6), P.y, neg ? 'right' : 'left', 'middle', ink);
-            else if (rot) text(t, P.x, P.y + (neg ? 6 : -6), neg ? 'right' : 'left', 'middle', ink, -Math.PI / 2);
             else text(t, P.x, P.y + (neg ? 6 : -5), 'center', neg ? 'top' : 'bottom', ink); }); });
-        if (stacked) Object.values(tot).forEach((k) => { if (k.cnt < 2) return; const t = fmtFor(bv[0])(k.sum); if (horiz) text(t, k.pos.x + 6, k.pos.y, 'left', 'middle', ink); else text(t, k.pos.x, k.pos.y - 5, 'center', 'bottom', ink); });
+        if (stacked) Object.entries(tot).forEach(([i, k]) => { if (k.cnt < 2 || (dense && +i % Math.ceil(n / 12))) return; const t = fmtFor(bv[0])(k.sum); if (horiz) text(t, k.pos.x + 6, k.pos.y, 'left', 'middle', ink); else text(t, k.pos.x, k.pos.y - 5, 'center', 'bottom', ink); });
+        ctx.font = '600 11px system-ui, sans-serif';
       }
       if (lv.length) {
-        const many = lv.length > 1; const val = (di, i) => { const m = chart.getDatasetMeta(di)._parsed[i]; return m && m.y != null && isFinite(m.y) ? m.y : null; };
-        lv.forEach((di) => { const meta = chart.getDatasetMeta(di); const f = fmtFor(di); const pts = meta.data.map((el, i) => ({ el, i, v: val(di, i) })).filter((p) => p.v != null); if (!pts.length) return;
-          const step = Math.max(1, Math.ceil(pts.length / (many ? 9 : 14))); const mx = pts.reduce((a, b) => (b.v > a.v ? b : a)), mn = pts.reduce((a, b) => (b.v < a.v ? b : a)); const flat = mx.v === mn.v;
-          pts.forEach((p, k) => { if (flat && k !== pts.length - 1) return; const edge = k === pts.length - 1 || k === 0; if (k % step && !edge && p !== mx && p !== mn) return;
-            const others = lv.filter((d) => d !== di).map((d) => val(d, p.i)).filter((x) => x != null); const above = flat || !many || !others.length || p.v >= Math.max(...others);
-            const P = p.el.getProps(['x', 'y'], true); text(f(p.v), P.x, P.y + (above ? -8 : 8), 'center', above ? 'bottom' : 'top', ink); }); });
+        const val = (di, i) => { const m = chart.getDatasetMeta(di)._parsed[i]; return m && m.y != null && isFinite(m.y) ? m.y : null; };
+        lv.forEach((di, vi) => { const meta = chart.getDatasetMeta(di); const f = fmtFor(di); const pts = meta.data.map((el, i) => ({ el, i, v: val(di, i) })).filter((p) => p.v != null); if (!pts.length) return;
+          const last = pts[pts.length - 1]; const show = new Set([last]); if (vi === 0 && pts.length > 2) { const mx = pts.reduce((a, b) => (b.v > a.v ? b : a)), mn = pts.reduce((a, b) => (b.v < a.v ? b : a)); if (mx.v !== mn.v) { show.add(mx); show.add(mn); } }
+          if (pts.length <= 8 && lv.length === 1) pts.forEach((p) => show.add(p));
+          show.forEach((p) => { const others = lv.filter((d) => d !== di).map((d) => val(d, p.i)).filter((x) => x != null); const above = !others.length || p.v >= Math.max(...others); const P = p.el.getProps(['x', 'y'], true); text(f(p.v), P.x, P.y + (above ? -8 : 8), 'center', above ? 'bottom' : 'top', ink); }); });
       }
       if (pv.length) {
         const di = pv[0]; const meta = chart.getDatasetMeta(di); const data = chart.data.datasets[di].data; const total = data.reduce((a, b) => a + (+b || 0), 0) || 1; const f = fmtFor(di);
