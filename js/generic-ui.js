@@ -79,12 +79,14 @@
     id, label,
     async mount(panel) {
       let all = [], selName = null, selVer = null, selSheet = 0, chartCfg = null;
-      const load = async () => { all = (await LM.db.all('datasets')).filter((d) => d.dept === id); };
+      let reSets = [], reCur = null; const REV = '__realestate__';
+      const load = async () => { const every = (await LM.db.all('datasets')).filter((d) => d.dept === id); all = every.filter((d) => !d.type); reSets = every.filter((d) => d.type === 'realestate').sort((a, b) => (a.end < b.end ? 1 : -1)); };
       const names = () => [...new Set(all.map((d) => d.name))].sort();
       const versions = (n) => all.filter((d) => d.name === n).sort((a, b) => b.version - a.version);
 
       async function upload(file) {
         let rf; try { rf = await LM.readFile(file); } catch (e) { return alert(e.message); }
+        if (id === 'others' && LM.realestate && LM.realestate.detect(rf.wb)) return LM.realestateUI.upload(rf, { sets: reSets, done: async (rid) => { reCur = rid; selName = REV; await load(); draw(); }, reload: async () => { await load(); draw(); } });
         const sheets = rf.wb.SheetNames.map((n) => profileSheet(n, LM.engine.rowsOf(rf.wb, n)));
         const defName = file.name.replace(/\.[^.]+$/, '').replace(/[\s_-]*(\d{1,4}[-_.]\d{1,2}([-_.]\d{1,4})?|week\s*\d+|wk\s*\d+|w\d+)[\s_-]*/gi, ' ').trim() || file.name;
         const guess = names().find((n) => LM.similarity(n, defName) > 0.7) || null;
@@ -122,11 +124,14 @@
         panel.replaceChildren(h('div', { class: 'head' }, h('h2', {}, label), h('div', { class: 'spacer' }), picker));
         LM.dropZone(panel, upload);
         if (banner) panel.append(h('div', { class: 'banner' }, banner));
-        if (!names().length) return panel.append(h('div', { class: 'empty' }, h('h3', {}, 'Nothing uploaded yet'), h('p', { class: 'sub' }, 'Drop any Excel or CSV file here. It is checked for problems first, then summarised automatically.')));
-        if (!selName || !names().includes(selName)) { selName = names()[0]; selVer = null; }
+        if (!names().length && !reSets.length) return panel.append(h('div', { class: 'empty' }, h('h3', {}, 'Nothing uploaded yet'), h('p', { class: 'sub' }, 'Drop any Excel or CSV file here. It is checked for problems first, then summarised automatically.')));
+        if (selName === REV && !reSets.length) selName = null;
+        if (selName !== REV && (!selName || !names().includes(selName))) { selName = names()[0] || (reSets.length ? REV : null); selVer = null; }
+        const chips = h('div', { class: 'dslist' }, reSets.length ? h('button', { class: 'btn' + (selName === REV ? ' on' : ''), onclick: () => { selName = REV; draw(); } }, '🏢 Real estate') : null, names().map((n) => h('button', { class: 'btn' + (n === selName ? ' on' : ''), onclick: () => { selName = n; selVer = null; selSheet = 0; chartCfg = null; draw(); } }, n)));
+        if (selName === REV) { const host = h('div'); panel.append(chips, host); return LM.realestateUI.view(host, reSets, { cur: reCur, reload: async () => { await load(); draw(); } }); }
         const vs = versions(selName); const ds = vs.find((v) => v.id === selVer) || vs[0]; selVer = ds.id;
         panel.append(
-          h('div', { class: 'dslist' }, names().map((n) => h('button', { class: 'btn' + (n === selName ? ' on' : ''), onclick: () => { selName = n; selVer = null; selSheet = 0; chartCfg = null; draw(); } }, n))),
+          chips,
           h('div', { class: 'tools' },
             h('select', { class: 'sel', onchange: (e) => { selVer = e.target.value; chartCfg = null; draw(); } }, vs.map((v) => h('option', { value: v.id, selected: v.id === ds.id }, `Version ${v.version} · ${v.uploadedAt.slice(0, 10)} · ${v.fileName}`))),
             ds.sheets.length > 1 ? h('select', { class: 'sel', onchange: (e) => { selSheet = +e.target.value; chartCfg = null; draw(); } }, ds.sheets.map((s, i) => h('option', { value: i, selected: i === selSheet }, `Sheet: ${s.name}`))) : null,
