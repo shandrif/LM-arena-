@@ -242,7 +242,7 @@
     const seen = new Set(); out.forEach((x) => { if (!/^B\d+$/.test(x.code)) issues.push(I('warn', `Row ${x.row}: branch code "${x.code}" is not in the usual B## format.`)); if (!x.status) issues.push(I('warn', `Row ${x.row} (${x.code}): status is empty.`)); if (seen.has(x.code)) issues.push(I('warn', `Branch ${x.code} appears more than once.`)); seen.add(x.code); });
     if (!out.length) issues.push(I('error', 'No branch rows found.'));
     const asOf = (ov && ov.asOf && ov.asOf.date) || null;
-    if (!asOf) issues.push(I('warn', 'This file has no date. Enter the week-ending date it applies to below.', { type: 'asOf', id: 'date', kind: 'date', label: 'Use this date' }));
+    if (!asOf) issues.push(I('error', 'This file has no date. Enter the week-ending date it applies to below.', { type: 'asOf', id: 'date', kind: 'date', label: 'Use this date' }));
     return { issues, start: asOf, end: asOf, data: { rows: out } };
   }
 
