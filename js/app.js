@@ -2,11 +2,10 @@
 (function () {
   const LM = window.LM; const { h } = LM;
   const DRAFT = 'No custom summary for this department yet. Files you upload are checked and summarised automatically; share the weekly report with Claude to build the dedicated KPIs and format checks for this tab.';
+  const generic = (id, l) => LM.makeGenericDept(id, l, DRAFT);
   const depts = [
-    LM.depts.sales,
-    LM.depts.wastage,
-    ...[['international', 'International'], ['nep', 'NEP'], ['procurement', 'Procurement'], ['quality', 'Quality'], ['roasting', 'Roasting'], ['training', 'Training'], ['warehouse', 'Warehouse']]
-      .map(([id, l]) => LM.makeGenericDept(id, l, DRAFT)),
+    LM.depts.sales, LM.depts.wastage, generic('international', 'International'), generic('nep', 'NEP'), generic('procurement', 'Procurement'),
+    LM.depts.quality, generic('roasting', 'Roasting'), generic('training', 'Training'), generic('warehouse', 'Warehouse'),
     LM.makeGenericDept('others', 'Others', null),
   ];
   const panel = h('main'); const tabs = h('nav', { class: 'tabs' });
