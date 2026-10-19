@@ -6,7 +6,7 @@
   const depts = [
     LM.depts.sales, LM.depts.wastage, LM.depts.international, LM.depts.nep, LM.depts.procurement,
     LM.depts.quality, LM.depts.roasting, LM.depts.training, LM.depts.warehouse,
-    LM.makeGenericDept('others', 'Others', null), LM.depts.discussion,
+    LM.makeGenericDept('others', 'Others', null), LM.depts.shipment, LM.depts.discussion,
   ];
   const panel = h('main'); const tabs = h('nav', { class: 'tabs' });
   let active = (location.hash || '#sales').slice(1);

@@ -3,7 +3,7 @@
 (function () {
   const LM = window.LM; const { h } = LM; LM.depts = LM.depts || {};
   const KEY = 'discussion';
-  const DEPTS = ['General', 'Sales', 'Wastage', 'International', 'NEP', 'Procurement', 'Quality', 'Roasting', 'Training', 'Warehouse', 'Others'];
+  const DEPTS = ['General', 'Sales', 'Wastage', 'International', 'NEP', 'Procurement', 'Quality', 'Roasting', 'Training', 'Warehouse', 'Shipment', 'Others'];
   const when = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); };
 
   LM.depts.discussion = {
