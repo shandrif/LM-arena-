@@ -17,6 +17,7 @@ console.log('dist/dashboard.html', (html.length / 1e6).toFixed(1) + ' MB');
   let a = html.replace(/<!doctype html>\s*<html[^>]*>\s*<head>/i, '').replace(/<\/head>\s*<body>/i, '').replace(/<\/body>\s*<\/html>\s*$/i, '');
   a = a.replace(/<meta charset[^>]*>\s*<meta name="viewport"[^>]*>\s*/i, '').replace(/<link rel="icon"[^>]*>\s*/i, '');
   a = a.replace('<style>', () => '<style>').replace(/(<title>[\s\S]*?<\/title>)/, '$1\n<script>window.LM_NO_DOWNLOADS = true;</script>');
+  a = a.replace(/\uFFFD/g, '\\uFFFD'); // the publisher rejects a literal U+FFFD; inside JS strings / regexes the escape means the same
   fs.writeFileSync(path.join(root, 'dist/artifact.html'), a);
   console.log('dist/artifact.html', (a.length / 1e6).toFixed(1) + ' MB');
 }
