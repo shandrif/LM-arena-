@@ -162,10 +162,64 @@
 
   /* ---------- charts ---------- */
   const live = new Set();
+  /* ---------- value labels: every bar / point / slice shows its number ---------- */
+  const tidy = (x, d) => String(+x.toFixed(d));
+  const fmtValue = (v) => { const a = Math.abs(v); if (Number.isInteger(v) && a < 1e4) return v.toLocaleString('en-US'); if (a >= 1e6) return tidy(v / 1e6, 2) + 'M'; if (a >= 1e4) return tidy(v / 1e3, 1) + 'K'; if (a >= 1e3) return Math.round(v).toLocaleString('en-US'); if (a >= 100) return String(Math.round(v)); if (a >= 10) return tidy(v, 1); return tidy(v, 2); };
+  const lum = (c) => { const m = /^#([0-9a-f]{6})$/i.exec(String(c || '').trim()); if (!m) return 0.2; const n = parseInt(m[1], 16); return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255; };
+  const valueLabels = {
+    id: 'valueLabels',
+    afterDatasetsDraw(chart) {
+      const o = (chart.options.plugins || {}).valueLabels; if (o === false || (o && o.display === false)) return;
+      const ctx = chart.ctx; const ink = css('--ink') || '#222', halo = css('--surface') || '#fff';
+      const horiz = chart.options.indexAxis === 'y'; const vis = chart.data.datasets.map((_, i) => i).filter((i) => chart.isDatasetVisible(i));
+      const fmtFor = (di) => { const ds = chart.data.datasets[di]; const sc = chart.scales[ds.yAxisID || (horiz ? 'x' : 'y')]; const cb = sc && sc.options && sc.options.ticks && sc.options.ticks.callback;
+        return (v) => { if (o && typeof o.format === 'function') return o.format(v);
+          if (typeof cb === 'function') { try { const r = String(cb.call(sc, v, 0, [])); if (/%\s*$/.test(r)) { const x = parseFloat(r.replace(/,/g, '')); if (isFinite(x)) return fmtValue(x) + '%'; } } catch (e) { /* plain number */ } }
+          return fmtValue(v); }; };
+      ctx.save(); ctx.font = '600 11px system-ui, sans-serif'; ctx.fontVariantNumeric = 'tabular-nums';
+      const text = (t, x, y, align, base, color, rot) => { ctx.save(); ctx.translate(x, y); if (rot) ctx.rotate(rot); ctx.textAlign = align; ctx.textBaseline = base; if (color === ink) { ctx.lineWidth = 3; ctx.strokeStyle = halo; ctx.lineJoin = 'round'; ctx.strokeText(t, 0, 0); } ctx.fillStyle = color; ctx.fillText(t, 0, 0); ctx.restore(); };
+      const kind = (di) => chart.getDatasetMeta(di).type; const bv = vis.filter((i) => kind(i) === 'bar'), lv = vis.filter((i) => kind(i) === 'line'), pv = vis.filter((i) => kind(i) === 'doughnut' || kind(i) === 'pie');
+      if (bv.length) {
+        const stacked = !!(chart.options.scales && ((chart.options.scales.x && chart.options.scales.x.stacked) || (chart.options.scales.y && chart.options.scales.y.stacked)));
+        const n = chart.data.labels ? chart.data.labels.length : 0; const tot = {}; const bw = bv.length ? chart.getDatasetMeta(bv[0]).data : []; const pitch = !horiz && bw.length > 1 ? Math.abs(bw[1].x - bw[0].x) * 1 : 99; const cap = Math.ceil(n / 30);
+        bv.forEach((di) => { const meta = chart.getDatasetMeta(di); const f = fmtFor(di); const ds = chart.data.datasets[di];
+          meta.data.forEach((el, i) => { const pr = meta._parsed[i]; const v = pr ? (horiz ? pr.x : pr.y) : null; if (v == null || !isFinite(v)) return; const P = el.getProps(['x', 'y', 'base', 'width', 'height'], true); const t = f(v);
+            const bg = Array.isArray(ds.backgroundColor) ? ds.backgroundColor[i] : ds.backgroundColor;
+            if (stacked) { if (v === 0) return; const size = horiz ? Math.abs(P.x - P.base) : Math.abs(P.base - P.y); const tw = ctx.measureText(t).width; const fits = horiz ? size >= tw + 8 : size >= 16 && P.width >= tw + 4;
+              if (fits) text(t, horiz ? (P.x + P.base) / 2 : P.x, horiz ? P.y : (P.y + P.base) / 2, 'center', 'middle', lum(bg) > 0.62 ? '#222' : '#fff');
+              const k = tot[i] || (tot[i] = { sum: 0, pos: null, cnt: 0 }); k.sum += v; k.cnt++; const end = horiz ? P.x : P.y; if (k.pos == null || (horiz ? end > k.pos.v : end < k.pos.v)) k.pos = { v: end, x: P.x, y: P.y, w: P.width, h: P.height }; return; }
+            const tw = ctx.measureText(t).width; const neg = v < 0; if (v === 0 && n > 12) return; const rot = !horiz && P.width < tw; const step = Math.max(cap, horiz ? 1 : Math.ceil((rot ? 13 : tw + 8) / Math.max(pitch, 1))); if (step > 1 && i % step) return;
+            if (horiz) text(t, P.x + (neg ? -6 : 6), P.y, neg ? 'right' : 'left', 'middle', ink);
+            else if (rot) text(t, P.x, P.y + (neg ? 6 : -6), neg ? 'right' : 'left', 'middle', ink, -Math.PI / 2);
+            else text(t, P.x, P.y + (neg ? 6 : -5), 'center', neg ? 'top' : 'bottom', ink); }); });
+        if (stacked) Object.values(tot).forEach((k) => { if (k.cnt < 2) return; const t = fmtFor(bv[0])(k.sum); if (horiz) text(t, k.pos.x + 6, k.pos.y, 'left', 'middle', ink); else text(t, k.pos.x, k.pos.y - 5, 'center', 'bottom', ink); });
+      }
+      if (lv.length) {
+        const many = lv.length > 1; const val = (di, i) => { const m = chart.getDatasetMeta(di)._parsed[i]; return m && m.y != null && isFinite(m.y) ? m.y : null; };
+        lv.forEach((di) => { const meta = chart.getDatasetMeta(di); const f = fmtFor(di); const pts = meta.data.map((el, i) => ({ el, i, v: val(di, i) })).filter((p) => p.v != null); if (!pts.length) return;
+          const step = Math.max(1, Math.ceil(pts.length / (many ? 9 : 14))); const mx = pts.reduce((a, b) => (b.v > a.v ? b : a)), mn = pts.reduce((a, b) => (b.v < a.v ? b : a)); const flat = mx.v === mn.v;
+          pts.forEach((p, k) => { if (flat && k !== pts.length - 1) return; const edge = k === pts.length - 1 || k === 0; if (k % step && !edge && p !== mx && p !== mn) return;
+            const others = lv.filter((d) => d !== di).map((d) => val(d, p.i)).filter((x) => x != null); const above = flat || !many || !others.length || p.v >= Math.max(...others);
+            const P = p.el.getProps(['x', 'y'], true); text(f(p.v), P.x, P.y + (above ? -8 : 8), 'center', above ? 'bottom' : 'top', ink); }); });
+      }
+      if (pv.length) {
+        const di = pv[0]; const meta = chart.getDatasetMeta(di); const data = chart.data.datasets[di].data; const total = data.reduce((a, b) => a + (+b || 0), 0) || 1; const f = fmtFor(di);
+        meta.data.forEach((el, i) => { const v = +data[i]; if (!isFinite(v) || v === 0 || el.hidden) return; const P = el.getProps(['x', 'y', 'startAngle', 'endAngle', 'innerRadius', 'outerRadius'], true); const mid = (P.startAngle + P.endAngle) / 2; const big = P.endAngle - P.startAngle > 0.35; const r = big ? (P.innerRadius + P.outerRadius) / 2 : P.outerRadius + 14;
+          const t = `${f(v)} · ${Math.round((v / total) * 100)}%`; const bg = chart.data.datasets[di].backgroundColor; text(t, P.x + Math.cos(mid) * r, P.y + Math.sin(mid) * r, 'center', 'middle', big ? (lum(Array.isArray(bg) ? bg[i] : bg) > 0.62 ? '#222' : '#fff') : ink); });
+      }
+      ctx.restore();
+    },
+  };
   LM.chart = (canvasHost, cfg) => {
     const c = h('canvas'); canvasHost.append(c);
     Chart.defaults.font.family = 'system-ui, sans-serif'; Chart.defaults.color = css('--muted');
     cfg.options = Object.assign({ responsive: true, maintainAspectRatio: false }, cfg.options);
+    cfg.plugins = [...(cfg.plugins || []), valueLabels];
+    const ty = cfg.type || 'bar'; const horiz = cfg.options.indexAxis === 'y'; const many = (cfg.data.labels || []).length > 16;
+    cfg.options.layout = cfg.options.layout || {};
+    const all = [].concat(...(cfg.data.datasets || []).map((d) => (d.data || []).map((x) => (typeof x === 'number' ? Math.abs(x) : 0)))); const mxv = Math.max(0, ...all); const wRight = Math.min(80, Math.max(40, fmtValue(mxv).length * 7 + 18));
+    if (!cfg.options.layout.padding) cfg.options.layout.padding = ty === 'bar' ? (horiz ? { right: wRight, top: 4 } : { top: many ? 44 : 22 }) : ty === 'line' ? { top: 24, bottom: 16, right: 26, left: 4 } : { top: 22, bottom: 22, left: 22, right: 22 };
+    if (ty === 'bar' && horiz) { const nrows = (cfg.data.labels || []).length, ns = (cfg.data.datasets || []).length; const stacked = cfg.options.scales && cfg.options.scales.x && cfg.options.scales.x.stacked; const need = nrows * (stacked ? 24 : ns * 15 + 8) + 60; if (need > canvasHost.clientHeight) canvasHost.style.height = need + 'px'; }
     const ch = new Chart(c, cfg); live.add(ch); return ch;
   };
   LM.killCharts = () => { live.forEach((c) => c.destroy()); live.clear(); };
