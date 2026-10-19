@@ -34,9 +34,25 @@
   }
   const rin = h('input', { type: 'file', accept: '.json', style: 'display:none', onchange: () => rin.files[0] && restore(rin.files[0]) });
 
+  const snap = LM.snapshot.active;
+  async function saveCopy() { try { await LM.snapshot.download(); } catch (e) { alert('Could not create the HTML copy: ' + e.message + (location.protocol === 'file:' ? '\n\nThis page was opened straight from a file; open the hosted dashboard (or the single-file build) to save copies.' : '')); } }
+  function clearDialog() {
+    const ov = h('div', { class: 'overlay' }); const close = () => ov.remove(); let saved = false;
+    const status = h('div', { class: 'sub', style: 'margin-top:8px' });
+    const wipe = async () => { await LM.snapshot.clearAll(); close(); LM.toast('Dashboard cleared. Upload the new week’s files.'); show(active); };
+    ov.append(h('div', { class: 'modal', style: 'max-width:560px' }, h('div', { class: 'mh' }, h('h3', {}, 'Clear dashboard and start a new week')), h('div', { class: 'mb' },
+      h('p', {}, 'This removes every uploaded report and its history from this browser, in all tabs, so the new week starts completely empty and nothing is mixed.'),
+      h('p', { class: 'sub' }, 'Kept: what the dashboard has learned about your file formats (column and sheet name matches), so the same files still upload without questions. Not touched: your original files and any HTML copies you saved.'),
+      h('button', { class: 'btn primary', onclick: async (e) => { e.target.disabled = true; try { await LM.snapshot.download(); saved = true; status.textContent = '✓ HTML copy saved to your downloads.'; } catch (er) { status.textContent = 'Could not save the copy: ' + er.message; } e.target.disabled = false; } }, '⬇ Save an HTML copy first'), status),
+      h('div', { class: 'mf' }, h('div', { class: 'spacer' }), h('button', { class: 'btn', onclick: close }, 'Cancel'), h('button', { class: 'btn danger', onclick: async () => { if (!saved && !confirm('You have not saved an HTML copy. Clear everything anyway?')) return; await wipe(); } }, 'Clear all data'))));
+    document.body.append(ov);
+  }
+  const m = LM.snapshot.meta || {};
   document.body.prepend(h('header', { class: 'top' },
     h('div', { class: 'bar' }, h('span', { class: 'brand' }, '☕ Weekly Department Dashboard'), h('div', { class: 'spacer' }),
-      h('button', { class: 'btn small', onclick: backup, title: 'Download all stored data as one file' }, 'Backup'), h('button', { class: 'btn small', onclick: () => rin.click() }, 'Restore'), rin),
+      snap ? null : [h('button', { class: 'btn small', onclick: saveCopy, title: 'Save the whole dashboard with its data as one HTML file (read-only copy)' }, '⬇ Download as HTML'), h('button', { class: 'btn small danger', onclick: clearDialog, title: 'Remove all uploaded data to start a new week' }, 'Clear dashboard'),
+        h('button', { class: 'btn small', onclick: backup, title: 'Download all stored data as one file (to restore later)' }, 'Backup'), h('button', { class: 'btn small', onclick: () => rin.click() }, 'Restore'), rin]),
+    snap ? h('div', { class: 'banner', style: 'margin:8px 16px' }, `Saved copy · data up to ${m.latest || '–'} · saved ${(m.savedAt || '').slice(0, 16).replace('T', ' ')}. Read-only: uploads are switched off here. Open the live dashboard to add or change data.`) : null,
     tabs), panel);
   show(active);
 })();
