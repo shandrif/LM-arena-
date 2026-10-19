@@ -5,7 +5,7 @@
   const generic = (id, l) => LM.makeGenericDept(id, l, DRAFT);
   const depts = [
     LM.depts.sales, LM.depts.wastage, generic('international', 'International'), LM.depts.nep, LM.depts.procurement,
-    LM.depts.quality, LM.depts.roasting, generic('training', 'Training'), LM.depts.warehouse,
+    LM.depts.quality, LM.depts.roasting, LM.depts.training, LM.depts.warehouse,
     LM.makeGenericDept('others', 'Others', null),
   ];
   const panel = h('main'); const tabs = h('nav', { class: 'tabs' });

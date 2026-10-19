@@ -65,12 +65,7 @@
     const d = await crypto.subtle.digest('SHA-256', buf);
     return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
   }
-  LM.readFile = async (file) => {
-    const buf = await file.arrayBuffer();
-    let wb;
-    try { wb = XLSX.read(buf, { type: 'array', cellDates: false }); }
-    catch (e) { throw new Error(`"${file.name}" could not be opened as an Excel/CSV file (${e.message}).`); }
-    if (!wb.SheetNames.length) throw new Error(`"${file.name}" contains no sheets.`);
+  LM._fileInfo = async (file, buf) => {
     const hash = await sha(buf);
     // has this exact file (or a file with the same name) been sent before, in ANY tab?
     let dup = null;
@@ -82,6 +77,16 @@
       else if (sameName) dup = { exact: false, dept: sameName.dept, name: sameName.fileName, at: sameName.uploadedAt };
     } catch (e) { /* storage unavailable: skip */ }
     LM._dup = dup;
+    return { hash, name: file.name, size: file.size, dup };
+  };
+  LM.readBinary = async (file) => { const buf = await file.arrayBuffer(); return { buf, ...(await LM._fileInfo(file, buf)) }; };
+  LM.readFile = async (file) => {
+    const buf = await file.arrayBuffer();
+    let wb;
+    try { wb = XLSX.read(buf, { type: 'array', cellDates: false }); }
+    catch (e) { throw new Error(`"${file.name}" could not be opened as an Excel/CSV file (${e.message}).`); }
+    if (!wb.SheetNames.length) throw new Error(`"${file.name}" contains no sheets.`);
+    const info = await LM._fileInfo(file, buf); const { hash, dup } = info;
     return { wb, hash, name: file.name, size: file.size, dup };
   };
 
@@ -172,8 +177,8 @@
     ['dragleave', 'drop'].forEach((ev) => el.addEventListener(ev, (e) => { e.preventDefault(); el.classList.remove('drop-on'); }));
     el.addEventListener('drop', (e) => { const fs = [...e.dataTransfer.files]; if (fs.length) onFile(multi ? fs : fs[0]); });
   };
-  LM.filePicker = (onFile, label = 'Upload file', multiple = false) => {
-    const inp = h('input', { type: 'file', multiple, accept: '.xlsx,.xls,.xlsm,.csv,.ods', style: 'display:none', onchange: () => { if (inp.files.length) onFile(multiple ? [...inp.files] : inp.files[0]); inp.value = ''; } });
+  LM.filePicker = (onFile, label = 'Upload file', multiple = false, accept = '.xlsx,.xls,.xlsm,.csv,.ods') => {
+    const inp = h('input', { type: 'file', multiple, accept, style: 'display:none', onchange: () => { if (inp.files.length) onFile(multiple ? [...inp.files] : inp.files[0]); inp.value = ''; } });
     return h('span', {}, inp, h('button', { class: 'btn primary', onclick: () => inp.click() }, '⬆ ' + label));
   };
 
