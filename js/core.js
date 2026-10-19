@@ -71,15 +71,29 @@
     try { wb = XLSX.read(buf, { type: 'array', cellDates: false }); }
     catch (e) { throw new Error(`"${file.name}" could not be opened as an Excel/CSV file (${e.message}).`); }
     if (!wb.SheetNames.length) throw new Error(`"${file.name}" contains no sheets.`);
-    return { wb, hash: await sha(buf), name: file.name, size: file.size };
+    const hash = await sha(buf);
+    // has this exact file (or a file with the same name) been sent before, in ANY tab?
+    let dup = null;
+    try {
+      const prior = [...(await LM.db.all('datasets')), ...(await LM.db.all('history'))];
+      const same = prior.find((d) => d.hash === hash);
+      const sameName = !same && prior.find((d) => d.fileName === file.name);
+      if (same) dup = { exact: true, dept: same.dept, name: same.fileName, at: same.uploadedAt };
+      else if (sameName) dup = { exact: false, dept: sameName.dept, name: sameName.fileName, at: sameName.uploadedAt };
+    } catch (e) { /* storage unavailable: skip */ }
+    LM._dup = dup;
+    return { wb, hash, name: file.name, size: file.size, dup };
   };
 
   /* ---------- review dialog (shown before anything is processed) ---------- */
   /** opts: {title, facts:[[label,value]], issues, extra: Node, approveLabel, onFix(fix,value), onApprove(), onCancel()} */
   LM.review = (opts) => {
     const ov = h('div', { class: 'overlay' });
+    const dup = LM._dup; LM._dup = null;
+    const DEPT = { sales: 'Sales', wastage: 'Wastage', quality: 'Quality', procurement: 'Procurement', roasting: 'Roasting', warehouse: 'Warehouse', others: 'Others' };
+    const dupIssue = dup ? { level: 'warn', msg: dup.exact ? `DUPLICATE FILE: you already sent this exact file on ${dup.at.slice(0, 10)} ${dup.at.slice(11, 16)} (as “${dup.name}”, ${DEPT[dup.dept] || dup.dept} tab). It contains nothing new; cancel unless you want to re-process it.` : `A file with the same name (“${dup.name}”) was uploaded on ${dup.at.slice(0, 10)} in the ${DEPT[dup.dept] || dup.dept} tab, but its contents are different. Check this is the newer version.` } : null;
     const render = (o) => {
-      const issues = o.issues;
+      const issues = dupIssue ? [dupIssue, ...o.issues] : o.issues;
       const n = (l) => issues.filter((i) => i.level === l).length;
       const ack = h('input', { type: 'checkbox' });
       const approve = h('button', { class: 'btn primary', disabled: true }, o.approveLabel || 'Approve & process');
@@ -87,7 +101,7 @@
       ack.addEventListener('change', sync);
       const close = () => ov.remove();
       approve.onclick = async () => { approve.disabled = true; try { await o.onApprove(); close(); } catch (e) { alert(e.message); approve.disabled = false; } };
-      const list = ['error', 'warn', 'info'].flatMap((lv) => issues.filter((i) => i.level === lv)).map((i) => {
+      const list = [...(dupIssue ? [dupIssue] : []), ...['error', 'warn', 'info'].flatMap((lv) => issues.filter((i) => i.level === lv && i !== dupIssue))].map((i) => {
         let fixEl = null;
         if (i.fix && (i.fix.kind === 'date' || i.fix.kind === 'number')) {
           const inp = h('input', { type: i.fix.kind, step: 'any', class: 'sel' });
