@@ -4,7 +4,7 @@
   const LM = (window.LM = window.LM || {});
   const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Could not load ' + src)); document.head.append(s); });
   let ready;
-  const lib = () => ready || (ready = (async () => { if (!window.pdfjsLib) { await loadScript('vendor/pdf.min.js'); try { await loadScript('vendor/pdf.worker.min.js'); } catch (e) { /* worker loaded separately */ } } window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; return window.pdfjsLib; })());
+  const lib = () => ready || (ready = (async () => { const emb = (id) => { const e = document.getElementById(id); return e ? URL.createObjectURL(new Blob([e.textContent], { type: 'text/javascript' })) : null; }; const eMain = emb('lm-lib-pdf'), eWork = emb('lm-lib-pdfworker'); if (!window.pdfjsLib) { await loadScript(eMain || 'vendor/pdf.min.js'); if (!eWork) { try { await loadScript('vendor/pdf.worker.min.js'); } catch (e) { /* worker loaded separately */ } } } window.pdfjsLib.GlobalWorkerOptions.workerSrc = eWork || 'vendor/pdf.worker.min.js'; return window.pdfjsLib; })());
   const open = async (buf) => { const L = await lib(); return L.getDocument({ data: buf.slice(0) }).promise; };
   const render = async (doc, n, canvas, scale = 1.4) => { const page = await doc.getPage(n); const vp = page.getViewport({ scale }); canvas.width = vp.width; canvas.height = vp.height; await page.render({ canvasContext: canvas.getContext('2d', { willReadFrequently: true }), viewport: vp }).promise; return { page, vp }; };
   const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };

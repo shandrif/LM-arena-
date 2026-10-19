@@ -96,3 +96,4 @@ label.ck { display: flex; gap: 6px; align-items: center; }
 .dslist { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .dslist button { text-align: left; }
 .dslist button.on { border-color: var(--accent); background: var(--accent-soft); }
+.snap .btn.danger { display: none; }
