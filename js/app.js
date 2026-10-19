@@ -6,7 +6,7 @@
   const depts = [
     LM.depts.sales, LM.depts.wastage, LM.depts.international, LM.depts.nep, LM.depts.procurement,
     LM.depts.quality, LM.depts.roasting, LM.depts.training, LM.depts.warehouse,
-    LM.makeGenericDept('others', 'Others', null),
+    LM.makeGenericDept('others', 'Others', null), LM.depts.discussion,
   ];
   const panel = h('main'); const tabs = h('nav', { class: 'tabs' });
   let active = (location.hash || '#sales').slice(1);
@@ -42,7 +42,7 @@
     const wipe = async () => { await LM.snapshot.clearAll(); close(); LM.toast('Dashboard cleared. Upload the new week’s files.'); show(active); };
     ov.append(h('div', { class: 'modal', style: 'max-width:560px' }, h('div', { class: 'mh' }, h('h3', {}, 'Clear dashboard and start a new week')), h('div', { class: 'mb' },
       h('p', {}, 'This removes every uploaded report and its history from this browser, in all tabs, so the new week starts completely empty and nothing is mixed.'),
-      h('p', { class: 'sub' }, 'Kept: what the dashboard has learned about your file formats (column and sheet name matches), so the same files still upload without questions. Not touched: your original files and any HTML copies you saved.'),
+      h('p', { class: 'sub' }, 'Kept: your Discussion points, and what the dashboard has learned about your file formats (so the same files still upload without questions). Not touched: your original files and any HTML copies you saved.'),
       h('button', { class: 'btn primary', onclick: async (e) => { e.target.disabled = true; try { await LM.snapshot.download(); saved = true; status.textContent = '✓ HTML copy saved to your downloads.'; } catch (er) { status.textContent = 'Could not save the copy: ' + er.message; } e.target.disabled = false; } }, '⬇ Save an HTML copy first'), status),
       h('div', { class: 'mf' }, h('div', { class: 'spacer' }), h('button', { class: 'btn', onclick: close }, 'Cancel'), h('button', { class: 'btn danger', onclick: async () => { if (!saved && !confirm('You have not saved an HTML copy. Clear everything anyway?')) return; await wipe(); } }, 'Clear all data'))));
     document.body.append(ov);
