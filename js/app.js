@@ -4,7 +4,7 @@
   const DRAFT = 'No custom summary for this department yet. Files you upload are checked and summarised automatically; share the weekly report with Claude to build the dedicated KPIs and format checks for this tab.';
   const generic = (id, l) => LM.makeGenericDept(id, l, DRAFT);
   const depts = [
-    LM.depts.sales, LM.depts.wastage, generic('international', 'International'), LM.depts.nep, LM.depts.procurement,
+    LM.depts.sales, LM.depts.wastage, LM.depts.international, LM.depts.nep, LM.depts.procurement,
     LM.depts.quality, LM.depts.roasting, LM.depts.training, LM.depts.warehouse,
     LM.makeGenericDept('others', 'Others', null),
   ];
@@ -20,7 +20,8 @@
   depts.forEach((d) => tabs.append(h('button', { 'data-id': d.id, onclick: () => show(d.id) }, d.label)));
 
   async function backup() {
-    const dump = { app: 'lm-dashboard', version: 1, at: new Date().toISOString(), datasets: await LM.db.all('datasets'), templates: await LM.db.all('templates'), history: await LM.db.all('history') };
+    const b64 = (buf) => { let t = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };
+    const dump = { app: 'lm-dashboard', version: 1, at: new Date().toISOString(), datasets: (await LM.db.all('datasets')).map((r) => (r.pdf instanceof ArrayBuffer ? { ...r, pdf: { __b64: b64(r.pdf) } } : r)), templates: await LM.db.all('templates'), history: await LM.db.all('history') };
     const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(dump)], { type: 'application/json' })), download: `lm-dashboard-backup-${dump.at.slice(0, 10)}.json` });
     document.body.append(a); a.click(); a.remove();
   }
@@ -28,7 +29,7 @@
     let d; try { d = JSON.parse(await file.text()); } catch { return alert('That is not a valid backup file.'); }
     if (d.app !== 'lm-dashboard') return alert('That file is not a dashboard backup.');
     if (!confirm('Restoring replaces everything currently stored in this browser. Continue?')) return;
-    for (const s of ['datasets', 'templates', 'history']) { await LM.db.clear(s); for (const r of d[s] || []) await LM.db.put(s, r); }
+    for (const s of ['datasets', 'templates', 'history']) { await LM.db.clear(s); for (const r of d[s] || []) { if (r.pdf && r.pdf.__b64) { const bin = atob(r.pdf.__b64); const u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); r.pdf = u.buffer; } await LM.db.put(s, r); } }
     show(active); LM.toast('Backup restored');
   }
   const rin = h('input', { type: 'file', accept: '.json', style: 'display:none', onchange: () => rin.files[0] && restore(rin.files[0]) });

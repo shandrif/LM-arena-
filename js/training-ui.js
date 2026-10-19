@@ -16,9 +16,10 @@
     const horiz = c.dir === 'bar'; const stacked = /stacked/i.test(c.grouping); const pct = /percentStacked/i.test(c.grouping);
     if (/pie|doughnut/.test(c.type)) return LM.chart(host, { type: c.type === 'pie' ? 'pie' : 'doughnut', data: { labels: c.cats, datasets: [{ data: c.series[0].values, backgroundColor: c.cats.map((_, i) => PAL[i % PAL.length]) }] }, options: { plugins: { legend: { position: 'bottom' } } } });
     const type = c.type === 'line' ? 'line' : 'bar';
-    return LM.chart(host, { type, data: { labels: c.cats, datasets: c.series.map((s, i) => ({ label: s.name, data: pct ? s.values.map((v) => (v == null ? null : v * 100)) : s.values, backgroundColor: PAL[i % PAL.length], borderColor: PAL[i % PAL.length], tension: 0 })) }, options: { indexAxis: horiz ? 'y' : 'x', plugins: { legend: { display: c.series.length > 1, position: 'bottom' } }, scales: { x: { stacked, ticks: { callback: horiz && pct ? (v) => v + '%' : undefined } }, y: { stacked, ticks: { callback: !horiz && pct ? (v) => v + '%' : undefined } } } } });
+    return LM.chart(host, { type, data: { labels: c.cats, datasets: c.series.map((s, i) => ({ label: s.name, data: pct ? s.values.map((v) => (v == null ? null : v * 100)) : s.values, backgroundColor: PAL[i % PAL.length], borderColor: PAL[i % PAL.length], tension: 0 })) }, options: { indexAxis: horiz ? 'y' : 'x', plugins: { legend: { display: c.series.length > 1, position: 'bottom' } }, scales: { x: Object.assign({ stacked }, horiz && pct ? { ticks: { callback: (v) => v + '%' } } : {}), y: Object.assign({ stacked }, !horiz && pct ? { ticks: { callback: (v) => v + '%' } } : {}) } } });
   }
 
+  LM.deckChart = deckChart;
   LM.depts.training = {
     id: 'training', label: 'Training',
     async mount(panel) {
