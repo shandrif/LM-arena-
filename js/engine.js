@@ -100,7 +100,7 @@
       const name = findSheet(wb, ss, sk, overrides, template.sheetNames);
       if (!name) {
         issues.push({
-          level: ss.required ? 'error' : 'warn', code: 'sheet-missing', sheet: sk,
+          level: ss.required ? 'error' : ss.missingLevel || 'warn', code: 'sheet-missing', sheet: sk,
           msg: `${ss.required ? 'Required' : 'Expected'} sheet "${ss.names[0]}" (${ss.label}) was not found.`,
           fix: { type: 'sheet', key: sk, options: wb.SheetNames, label: 'Use this sheet instead' },
         });
@@ -189,5 +189,16 @@
   }
 
   LM.norm = norm; LM.clean = clean; LM.similarity = similarity; LM.parseDay = parseDay; LM.parseNum = parseNum;
+  /** Common "already uploaded / overlapping period" checks. */
+  const periodChecks = (ds, existing, hash) => {
+    const out = [];
+    (existing || []).forEach((e) => {
+      if (e.hash === hash) out.push({ level: 'warn', msg: `This exact file was already uploaded (${e.start} to ${e.end}, on ${e.uploadedAt.slice(0, 10)}).` });
+      else if (e.start === ds.start && e.end === ds.end) out.push({ level: 'warn', msg: `A report for ${ds.start} to ${ds.end} already exists. Approving will replace it (the old version is kept in history).` });
+      else if (e.start <= ds.end && ds.start <= e.end) out.push({ level: 'warn', msg: `This period overlaps an existing report (${e.start} to ${e.end}). Both will be kept; totals are never combined across reports.` });
+    });
+    return out;
+  };
+  LM.periodChecks = periodChecks;
   LM.engine = { analyze, rowsOf };
 })(typeof window !== 'undefined' ? window : globalThis);

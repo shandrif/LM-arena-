@@ -4,7 +4,8 @@
   const DRAFT = 'No custom summary for this department yet. Files you upload are checked and summarised automatically; share the weekly report with Claude to build the dedicated KPIs and format checks for this tab.';
   const depts = [
     LM.depts.sales,
-    ...[['wastage', 'Wastage'], ['international', 'International'], ['nep', 'NEP'], ['procurement', 'Procurement'], ['quality', 'Quality'], ['roasting', 'Roasting'], ['training', 'Training'], ['warehouse', 'Warehouse']]
+    LM.depts.wastage,
+    ...[['international', 'International'], ['nep', 'NEP'], ['procurement', 'Procurement'], ['quality', 'Quality'], ['roasting', 'Roasting'], ['training', 'Training'], ['warehouse', 'Warehouse']]
       .map(([id, l]) => LM.makeGenericDept(id, l, DRAFT)),
     LM.makeGenericDept('others', 'Others', null),
   ];
