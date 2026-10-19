@@ -32,8 +32,9 @@
     if (!data.datasets.length) throw new Error('There is no data in the dashboard yet.');
     const today = new Date().toISOString().slice(0, 10); const ends = data.datasets.map((d) => d.end).filter((e) => e && e <= today).sort(); const latest = ends[ends.length - 1] || today;
     const meta = { savedAt: new Date().toISOString(), latest, datasets: data.datasets.length };
-    let css = ''; for (const n of document.querySelectorAll('link[rel=stylesheet],style')) css += n.tagName === 'STYLE' ? n.textContent : await textOf(n.getAttribute('href'));
-    let js = ''; for (const n of document.querySelectorAll('script')) { if (n.id === 'lm-snapshot' || n.type === 'text/plain') continue; js += `<script>${safe(n.src ? await textOf(n.getAttribute('src')) : n.textContent)}</script>\n`; }
+    let css = ''; const own = (sel) => { const t = [...document.querySelectorAll(sel + '[data-lm]')]; return t.length ? t : [...document.querySelectorAll(sel)]; };
+    for (const n of own('link[rel=stylesheet],style')) css += n.tagName === 'STYLE' ? n.textContent : await textOf(n.getAttribute('href'));
+    let js = ''; for (const n of own('script')) { if (n.id === 'lm-snapshot' || n.type === 'text/plain') continue; js += `<script>${safe(n.src ? await textOf(n.getAttribute('src')) : n.textContent)}</script>\n`; }
     let libs = ''; if (data.datasets.some((d) => d.pdf)) { // the PDF viewer needs pdf.js
       const get = async (id, url) => { const e = document.getElementById(id); return e ? e.textContent : textOf(url); };
       libs = `<script type="text/plain" id="lm-lib-pdf">${safe(await get('lm-lib-pdf', 'vendor/pdf.min.js'))}</script>\n<script type="text/plain" id="lm-lib-pdfworker">${safe(await get('lm-lib-pdfworker', 'vendor/pdf.worker.min.js'))}</script>\n`; }
@@ -42,8 +43,7 @@
     return { html, name: `weekly-dashboard-${latest}-saved-${today}.html`, meta };
   }
   async function download() {
-    const { html, name } = await build(); const a = h('a', { href: URL.createObjectURL(new Blob([html], { type: 'text/html' })), download: name });
-    document.body.append(a); a.click(); a.remove(); LM.toast(`Saved ${name}`); return name;
+    const { html, name } = await build(); const ok = await LM.saveFile(name, html, 'text/html'); if (ok) LM.toast(`Saved ${name}`); return name;
   }
   async function clearAll() { for (const s of ['datasets', 'history']) await LM.db.clear(s); }
   LM.snapshot.build = build; LM.snapshot.download = download; LM.snapshot.clearAll = clearAll;

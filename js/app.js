@@ -22,8 +22,7 @@
   async function backup() {
     const b64 = (buf) => { let t = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };
     const dump = { app: 'lm-dashboard', version: 1, at: new Date().toISOString(), datasets: (await LM.db.all('datasets')).map((r) => (r.pdf instanceof ArrayBuffer ? { ...r, pdf: { __b64: b64(r.pdf) } } : r)), templates: await LM.db.all('templates'), history: await LM.db.all('history') };
-    const a = h('a', { href: URL.createObjectURL(new Blob([JSON.stringify(dump)], { type: 'application/json' })), download: `lm-dashboard-backup-${dump.at.slice(0, 10)}.json` });
-    document.body.append(a); a.click(); a.remove();
+    await LM.saveFile(`lm-dashboard-backup-${dump.at.slice(0, 10)}.json`, JSON.stringify(dump), 'application/json');
   }
   async function restore(file) {
     let d; try { d = JSON.parse(await file.text()); } catch { return LM.say('That is not a valid backup file.'); }
