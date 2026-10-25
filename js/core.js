@@ -95,7 +95,7 @@
   LM.review = (opts) => {
     const ov = h('div', { class: 'overlay' });
     const dup = LM._dup; LM._dup = null;
-    const DEPT = { sales: 'Sales', wastage: 'Wastage', quality: 'Quality', procurement: 'Procurement', roasting: 'Roasting', warehouse: 'Warehouse', shipment: 'Shipment', others: 'Others' };
+    const DEPT = { sales: 'Sales', wastage: 'Wastage', quality: 'Quality', procurement: 'Procurement', roasting: 'Roasting', warehouse: 'Warehouse', shipment: 'Shipment', bakery: 'Bakery factory', others: 'Others' };
     const dupIssue = dup ? { level: 'warn', msg: dup.exact ? `DUPLICATE FILE: you already sent this exact file on ${dup.at.slice(0, 10)} ${dup.at.slice(11, 16)} (as “${dup.name}”, ${DEPT[dup.dept] || dup.dept} tab). It contains nothing new; cancel unless you want to re-process it.` : `A file with the same name (“${dup.name}”) was uploaded on ${dup.at.slice(0, 10)} in the ${DEPT[dup.dept] || dup.dept} tab, but its contents are different. Check this is the newer version.` } : null;
     const render = (o) => {
       const issues = dupIssue ? [dupIssue, ...o.issues] : o.issues;
@@ -181,7 +181,7 @@
       const ctx = chart.ctx; const ink = css('--ink') || '#222', halo = css('--surface') || '#fff';
       const horiz = chart.options.indexAxis === 'y'; const vis = chart.data.datasets.map((_, i) => i).filter((i) => chart.isDatasetVisible(i));
       const fmtFor = (di) => { const ds = chart.data.datasets[di]; const sc = chart.scales[ds.yAxisID || (horiz ? 'x' : 'y')]; const cb = sc && sc.options && sc.options.ticks && sc.options.ticks.callback;
-        return (v) => { if (o && typeof o.format === 'function') return o.format(v);
+        return (v) => { if (o && typeof o.suffix === 'string') return fmtValue(v) + o.suffix;
           if (typeof cb === 'function') { try { const r = String(cb.call(sc, v, 0, [])); if (/%\s*$/.test(r)) { const x = parseFloat(r.replace(/,/g, '')); if (isFinite(x)) return fmtValue(x) + '%'; } } catch (e) { /* plain number */ } }
           return fmtValue(v); }; };
       ctx.save(); ctx.font = '600 11px system-ui, sans-serif'; ctx.fontVariantNumeric = 'tabular-nums';
