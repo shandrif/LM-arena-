@@ -6,7 +6,7 @@
 
   const TYPES = {
     trend: { label: 'Complaints trend', hint: '2026 Weekly (sheet “Weekly_Trend”)' },
-    coo: { label: 'COO weekly update', hint: 'Quality inspections, critical issues, complaints' },
+    coo: { label: 'Weekly update', hint: 'Quality inspections, critical issues, complaints' },
     audit: { label: 'Roasting factory audit', hint: 'Audit summary and non-conformities' },
     visits: { label: 'ROM & AM store visits', hint: 'Visit targets and geo compliance' },
     wifi: { label: 'Branch WiFi status', hint: 'WIFI report' },
@@ -252,7 +252,7 @@
   function analyze(wb, name, ov, template, existing, hash, allSets) {
     ov = ov || {}; template = template || {}; existing = existing || [];
     const type = ov.type || detect(wb);
-    if (!type) return { type: null, ds: null, issues: [I('error', 'This file was not recognised as one of the Quality reports (complaints trend, COO update, factory audit, store visits, WiFi).', { type: 'type', id: 'type', options: Object.keys(TYPES), label: 'Treat this file as' })] };
+    if (!type) return { type: null, ds: null, issues: [I('error', 'This file was not recognised as one of the Quality reports (complaints trend, weekly update, factory audit, store visits, WiFi).', { type: 'type', id: 'type', options: Object.keys(TYPES), label: 'Treat this file as' })] };
     const r = PARSERS[type](wb, name, ov); const issues = r.issues.slice();
     if (ov.type) issues.unshift(I('info', `Treated as: ${TYPES[type].label}.`));
     const ds = { type, start: r.start || null, end: r.end || null, data: r.data };
@@ -284,7 +284,7 @@
     return { type, ds, issues };
   }
 
-  /** Weekly complaint series keyed by week-end date, merged from trend snapshots and COO weekly tables (later upload wins). */
+  /** Weekly complaint series keyed by week-end date, merged from trend snapshots and weekly-update tables (later upload wins). */
   function complaintSeries(sets) {
     const S = {};
     [...sets].sort((a, b) => (a.uploadedAt < b.uploadedAt ? -1 : 1)).forEach((s) => {
