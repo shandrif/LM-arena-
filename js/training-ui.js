@@ -32,13 +32,13 @@
         const tpl = { dept: 'training', ...((await LM.db.get('templates', 'training')) || {}) }; const ov = {}; let res = await TR.analyze(rf.buf, rf.name, ov, tpl, sets, rf.hash);
         const info = () => { const d = res.ds && res.ds.data; return {
           title: `Review before processing: ${rf.name}`, issues: res.issues,
-          facts: d ? [['Week', res.ds.start ? `${res.ds.start} → ${res.ds.end}` : '–'], ['Slides', d.slides.length], ['Trainees onboarded', d.onboarding ? (d.onboarding.total != null ? d.onboarding.total : sum(d.onboarding.rows, (r) => r.count)) : '–'], ['Upcoming trainees', d.upcoming ? (d.upcoming.total != null ? d.upcoming.total : sum(d.upcoming.groups, (g) => g.count)) : '–']] : [['Report', 'Not readable']],
+          facts: d && d.glance ? [['Week', res.ds.start ? `${res.ds.start} → ${res.ds.end}` : '–'], ['Slides', d.slides.length], ['Onboarded last week', d.glance.rolesTotal == null ? '–' : d.glance.rolesTotal], ['Joining next', d.glance.joining ? sum(d.glance.joining.items, (x) => x.count) : '–'], ['Employees verified', d.glance.verification && d.glance.verification.verified != null ? d.glance.verification.verified : '–']] : d ? [['Week', res.ds.start ? `${res.ds.start} → ${res.ds.end}` : '–'], ['Slides', d.slides.length], ['Trainees onboarded', d.onboarding ? (d.onboarding.total != null ? d.onboarding.total : sum(d.onboarding.rows, (r) => r.count)) : '–'], ['Upcoming trainees', d.upcoming ? (d.upcoming.total != null ? d.upcoming.total : sum(d.upcoming.groups, (g) => g.count)) : '–']] : [['Report', 'Not readable']],
           approveLabel: res.ds && sets.some((s) => s.end === res.ds.end) ? 'Approve & replace existing week' : 'Approve & process',
           onFix: async (fix, val) => { if (fix.type === 'asOf') ov.asOf = { date: val }; res = await TR.analyze(rf.buf, rf.name, ov, tpl, sets, rf.hash); dlg.update(info()); },
           onApprove: async () => { if (!res.ds || res.issues.some((i) => i.level === 'error')) throw new Error('Fix the errors first.'); const d = res.ds; const old = sets.find((s) => s.end === d.end);
             if (old) { await LM.db.put('history', { ...old, id: LM.uid(), replacedAt: new Date().toISOString() }); await LM.db.del('datasets', old.id); }
             const rec = { id: LM.uid(), dept: 'training', type: 'training', start: d.start, end: d.end, fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), data: d.data };
-            await LM.db.put('datasets', rec); await LM.db.put('templates', { ...tpl, dept: 'training', sections: [...new Set([...(tpl.sections || []), ...d.data.found])] }); cur = rec.id; LM.toast(`Training week ${d.start} → ${d.end} processed`); await reload(); } }; };
+            await LM.db.put('datasets', rec); await LM.db.put('templates', { ...tpl, dept: 'training', sections: d.data.glance ? (tpl.sections || []) : [...new Set([...(tpl.sections || []), ...d.data.found])] }); cur = rec.id; LM.toast(`Training week ${d.start} → ${d.end} processed`); await reload(); } }; };
         const dlg = LM.review(info());
       }
 
@@ -50,13 +50,56 @@
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No training report uploaded yet'), h('p', { class: 'sub' }, 'Drop the weekly training report (.pptx). Onboarding, upcoming trainees, verification, programmes and Know to Grow are read from its slides and tables.')));
-        const tabs = ['Overview', 'Onboarding', 'Verification & visits', 'Programs', 'Know to Grow', 'Activities & projects', 'All slides', 'Uploads'];
+        const GL = !!ds.data.glance; const tabs = GL ? ['Overview', 'Onboarding & pipeline', 'Verification & development', 'Know to Grow & activities', 'All slides', 'Uploads'] : ['Overview', 'Onboarding', 'Verification & visits', 'Programs', 'Know to Grow', 'Activities & projects', 'All slides', 'Uploads'];
+        if (!tabs.includes(sub)) sub = 'Overview';
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Week ${ds.data.weekNo ? 'W' + ds.data.weekNo + ' · ' : ''}${ds.start} → ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))),
-          { Overview: overview, Onboarding: onboarding, 'Verification & visits': verification, Programs: programs, 'Know to Grow': know, 'Activities & projects': activities, 'All slides': allSlides, Uploads: uploads }[sub](ds));
+          (GL ? { Overview: gOverview, 'Onboarding & pipeline': gOnboarding, 'Verification & development': gVerification, 'Know to Grow & activities': gK2g, 'All slides': allSlides, Uploads: uploads } : { Overview: overview, Onboarding: onboarding, 'Verification & visits': verification, Programs: programs, 'Know to Grow': know, 'Activities & projects': activities, 'All slides': allSlides, Uploads: uploads })[sub](ds));
       }
       const miss = (w) => h('div', { class: 'banner' }, `${w} is not in this deck.`);
       const onbTotal = (d) => (d.onboarding ? (d.onboarding.total != null ? d.onboarding.total : sum(d.onboarding.rows, (r) => r.count)) : null);
       const upTotal = (d) => (d.upcoming ? (d.upcoming.total != null ? d.upcoming.total : sum(d.upcoming.groups, (g) => g.count)) : null);
+
+
+      /* ---------- "Weekly Training Updates" template ---------- */
+      const MONF = { JAN: 'Jan', FEB: 'Feb', MAR: 'Mar', APR: 'Apr', MAY: 'May', JUN: 'Jun', JUL: 'Jul', AUG: 'Aug', SEP: 'Sep', OCT: 'Oct', NOV: 'Nov', DEC: 'Dec' };
+      const gbar = (el, labels, vals, color, horiz) => LM.chart(el, { type: 'bar', data: { labels, datasets: [{ data: vals, backgroundColor: color || LM.css('--accent') }] }, options: { indexAxis: horiz ? 'y' : 'x', plugins: { legend: { display: false } }, scales: { [horiz ? 'x' : 'y']: { ticks: { precision: 0 } } } } });
+      const parts = (b) => (b ? b.parts.map((p) => h('div', { class: 'sub' }, h('b', {}, p.value), ' ', p.label)) : []);
+      const progCard = (t, b, note) => (b ? h('div', { class: 'card' }, h('h3', {}, t), h('div', { style: 'display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap' }, h('div', {}, h('div', { class: 'v', style: 'font-size:30px;font-weight:700' }, b.headline || '–'), h('div', { class: 'sub' }, b.headlineLabel)), h('div', { style: 'display:grid;gap:2px' }, ...parts(b))), b.extra && b.extra.length ? h('div', { class: 'sub', style: 'margin-top:6px' }, b.extra.join(' · ')) : null, note ? h('div', { class: 'sub', style: 'margin-top:6px' }, note) : null) : null);
+      function gOverview(ds) {
+        const G = ds.data.glance; const el = h('div', {}, h('div', { class: 'grid kpis' }, G.kpis.map((k) => kpi(k.label, k.value, k.sub)), G.k2g && G.k2g.stores != null ? kpi('Know to Grow participation', `${G.k2g.pct}%`, `${G.k2g.stores} of ${G.k2g.total} stores`) : null),
+          card('This week in short', h('ul', { class: 'findings' }, [
+            G.rolesTotal != null ? `${G.rolesTotal} trainees were onboarded last week${G.joining ? `; ${sum(G.joining.items, (x) => x.count)} more join on ${G.joining.day} ${MONF[G.joining.month] || G.joining.month} (${G.joining.text.replace(/ · /g, ', ')})` : ''}.` : null,
+            G.pipeline.length ? `Pipeline: ${G.pipeline.map((p) => `${p.value} ${p.label.toLowerCase()}`).join(', ')}.` : null,
+            G.verification && G.verification.verified != null ? `${G.verification.verified} employees verified at ${G.verification.pct}% overall${G.kpis[1] && G.kpis[1].sub ? ` (${G.kpis[1].sub.toLowerCase()})` : ''}.` : null,
+            G.kpis[2] ? `${G.kpis[2].value} visits: ${G.kpis[2].sub}.` : null,
+            G.cashierToBarista && G.cashierToBarista.parts.length >= 3 ? `Cashier to Barista: ${G.cashierToBarista.parts[1].value} of ${G.cashierToBarista.parts[0].value} certified${G.cashierToBarista.extra[0] ? `, ${G.cashierToBarista.extra[0].toLowerCase()}` : ''}.` : null,
+            G.successors && G.successors.parts.length >= 3 ? `Successors program: ${G.successors.parts[1].value} of ${G.successors.parts[0].value} awaiting promotion, ${G.successors.parts[2].value} failed (${G.successors.headline} success).` : null,
+            G.areaManagers ? `Area Manager development: ${G.areaManagers.headline} candidates progressing, ${G.areaManagers.parts.slice(1).map((p) => `${p.value} ${p.label}`).join(', ')}.` : null,
+            G.k2g && G.k2g.zero != null ? `Know to Grow: ${G.k2g.stores} of ${G.k2g.total} stores participated (${G.k2g.pct}%); ${G.k2g.high} managers at ${G.k2g.highAt}% or more and ${G.k2g.zero} at 0%.` : null,
+          ].filter(Boolean).map((t) => h('li', {}, t)))),
+          h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Trainees onboarded last week, by role', 'c1', 280), chartCard('Where the trainees are now', 'c2', 280)),
+          h('div', { class: 'grid', style: 'grid-template-columns:repeat(auto-fit,minmax(260px,1fr))' }, progCard('Cashier to Barista', G.cashierToBarista), progCard('Successors program', G.successors), progCard('Area Manager development', G.areaManagers)));
+        setTimeout(() => { gbar(el.querySelector('#c1'), G.roles.map((r) => r.position), G.roles.map((r) => r.count), null, true); gbar(el.querySelector('#c2'), G.pipeline.map((p) => p.label), G.pipeline.map((p) => p.value), '#2c7a7b', true); }); return el;
+      }
+      function gOnboarding(ds) {
+        const G = ds.data.glance;
+        const el = h('div', {}, h('div', { class: 'grid kpis' }, kpi('Onboarded last week', G.rolesTotal, `${G.roles.length} roles`), G.pipeline.map((p) => kpi(p.label, p.value, G.rolesTotal ? `${Math.round((p.value / G.rolesTotal) * 100)}% of onboarded` : '')), G.joining ? kpi('Joining next', `${G.joining.day} ${MONF[G.joining.month] || G.joining.month}`, G.joining.text) : null),
+          h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Trainees by role', 'c1', 260), chartCard('Pipeline status', 'c2', 260)),
+          card('By role: where they are', LM.table([{ k: 'position', label: 'Role', l: 1 }, { k: 'count', label: 'Trainees', fmt: num }, { k: 'note', label: 'Status', l: 1, cls: 'wrap' }], G.roles, { sort: 'count' })));
+        setTimeout(() => { gbar(el.querySelector('#c1'), G.roles.map((r) => r.position), G.roles.map((r) => r.count), null, true); gbar(el.querySelector('#c2'), G.pipeline.map((p) => p.label), G.pipeline.map((p) => p.value), '#2c7a7b', true); }); return el;
+      }
+      function gVerification(ds) {
+        const G = ds.data.glance; const v = G.verification || {}; const el = h('div', {}, h('div', { class: 'grid kpis' }, kpi('Employees verified', v.verified == null ? '–' : v.verified, v.pct != null ? `${v.pct}% overall` : ''), G.kpis[1] ? kpi('Change', G.kpis[1].sub, '') : null, G.kpis[2] ? kpi('Total visits', G.kpis[2].value, G.kpis[2].sub) : null, G.kpis[3] ? kpi('Training verification', G.kpis[3].value, G.kpis[3].sub) : null, v.share ? kpi(`${v.share.position} share`, `${v.share.pct}%`, `of verified staff · ${v.share.avg}% average`) : null),
+          h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Average verification by position (%)', 'c1', 260), h('div', { class: 'grid', style: 'grid-template-columns:1fr' }, progCard('Cashier to Barista', G.cashierToBarista), progCard('Successors program', G.successors), progCard('Area Manager development', G.areaManagers))));
+        setTimeout(() => { if (v.byPosition && v.byPosition.length) LM.chart(el.querySelector('#c1'), { type: 'bar', data: { labels: v.byPosition.map((x) => x.position), datasets: [{ data: v.byPosition.map((x) => x.avg), backgroundColor: LM.css('--accent') }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100, ticks: { callback: (x) => x + '%' } } } } }); }); return el;
+      }
+      function gK2g(ds) {
+        const G = ds.data.glance; const k = G.k2g; if (!k) return miss('Know to Grow');
+        const M = [...k.managers].sort((a, b) => b.pct - a.pct); const el = h('div', {}, h('div', { class: 'grid kpis' }, kpi('Stores participated', `${k.stores} of ${k.total}`, `${k.pct}%${k.date ? ' · ' + k.date.month + ' ' + k.date.day : ''}`), k.high != null ? kpi(`Managers at ${k.highAt}%+`, k.high, `of ${M.length} managers`) : null, k.zero != null ? kpi('Managers at 0%', k.zero, 'no store participated') : null),
+          h('div', { class: 'grid half', style: 'margin-bottom:12px' }, h('div', { class: 'card' }, h('h3', {}, 'Participation by manager'), h('div', { class: 'chart', id: 'c1', style: `height:${Math.max(240, M.length * 26 + 50)}px` })), card('Manager table', LM.table([{ k: 'name', label: 'Manager', l: 1 }, { k: 'done', label: 'Stores participated', fmt: num }, { k: 'total', label: 'Stores', fmt: num }, { k: 'pct', label: 'Participation', fmt: (x) => p1(x) }], M, { sort: 'pct' }))),
+          card('Weekly activities', LM.table([{ k: 'n', label: '#' }, { k: 'title', label: 'Activity', l: 1 }, { k: 'desc', label: 'What happened', l: 1, cls: 'wrap' }], G.activities, { sort: 'n', dir: 1 })));
+        setTimeout(() => LM.chart(el.querySelector('#c1'), { type: 'bar', data: { labels: M.map((m) => `${m.name} (${m.done}/${m.total})`), datasets: [{ data: M.map((m) => m.pct), backgroundColor: M.map((m) => (m.pct >= 90 ? '#1d7a46' : m.pct === 0 ? '#b3261e' : LM.css('--accent'))) }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { min: 0, max: 100, ticks: { callback: (x) => x + '%' } } } } })); return el;
+      }
 
       /* ---------- Overview ---------- */
       function overview(ds) {

@@ -18,8 +18,8 @@
   function parseChart(doc) {
     const plot = desc(doc, 'plotArea')[0]; if (!plot) return null;
     const ct = kids(plot).find((n) => /Chart$/.test(n.localName)); if (!ct) return null;
-    const pts = (cache) => { if (!cache) return []; const n = +attr(kid(cache, 'ptCount'), 'val') || 0; const arr = new Array(n).fill(null); kids(cache, 'pt').forEach((p) => { arr[+attr(p, 'idx')] = (kid(p, 'v') || {}).textContent; }); return arr; };
-    const caches = (node) => desc(node, 'strCache')[0] || desc(node, 'numCache')[0] || null;
+    const pts = (cache) => { if (!cache) return []; const lvl = cache.localName === 'multiLvlStrCache' ? kid(cache, 'lvl') : cache; if (!lvl) return []; const n = +attr(kid(cache, 'ptCount'), 'val') || 0; const arr = new Array(n).fill(null); kids(lvl, 'pt').forEach((p) => { arr[+attr(p, 'idx')] = (kid(p, 'v') || {}).textContent; }); return arr; };
+    const caches = (node) => desc(node, 'strCache')[0] || desc(node, 'numCache')[0] || desc(node, 'multiLvlStrCache')[0] || null;
     const series = kids(ct, 'ser').map((s) => { const tx = kid(s, 'tx'); const name = tx ? ((desc(tx, 'v')[0] || {}).textContent || '') : ''; const cat = kid(s, 'cat'); const val = kid(s, 'val') || kid(s, 'yVal'); return { name: clean(name), cats: pts(cat ? caches(cat) : null).map((c) => (c == null ? '' : clean(c))), values: pts(val ? caches(val) : null).map((v) => (v == null || v === '' ? null : +v)) }; });
     const titleEl = kid(doc.documentElement, 'chart') && kid(kid(doc.documentElement, 'chart'), 'title');
     return { kind: 'chart', type: ct.localName.replace(/Chart$/, ''), dir: attr(kid(ct, 'barDir'), 'val') || '', grouping: attr(kid(ct, 'grouping'), 'val') || '', title: titleEl ? clean(desc(titleEl, 't').map((t) => t.textContent).join('')) : '', cats: series[0] ? series[0].cats : [], series: series.map((s) => ({ name: s.name, values: s.values })) };
