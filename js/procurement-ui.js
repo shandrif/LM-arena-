@@ -9,7 +9,7 @@
     id: 'procurement', label: 'Procurement',
     async mount(panel) {
       let sets = [], tpl = { dept: 'procurement' }, sub = 'Overview', prView = 'Requisitions'; const sel = {};
-      const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'procurement'); tpl = { dept: 'procurement', ...((await LM.db.get('templates', 'procurement')) || {}) }; draw(); };
+      const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'procurement'); tpl = { dept: 'procurement', ...((await LM.db.get('templates', 'procurement')) || {}) }; await loadMeet(); draw(); };
       const of = (t) => sets.filter((s) => s.type === t).sort((a, b) => (a.end < b.end ? 1 : -1));
       const cur = (t) => { const l = of(t); return l.find((s) => s.id === sel[t]) || l[0] || null; };
       const prev = (t) => { const c = cur(t); return c ? of(t).find((s) => s.end < c.end) || null : null; };
@@ -43,14 +43,36 @@
         });
       }
 
+      /* ---------- supplier meetings (free text, kept across weeks; 'templates' store so Clear dashboard keeps it) ---------- */
+      const MK = 'procurement-meetings'; let meet = []; const roMeet = () => !!(LM.viewOnly || (LM.snapshot && LM.snapshot.active));
+      const SEED = [{ supplier: 'Perfect Chef', topic: 'Discussed chocolate prices for next year and consumption.' }, { supplier: 'CDC', topic: 'Discussed finding alternative brands for Lotus and compound chocolate.' }];
+      const lastWeekEnd = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - 1); return d.toISOString().slice(0, 10); };
+      async function loadMeet() { const r = await LM.db.get('templates', MK); if (r) { meet = r.items || []; return; }
+        if (roMeet()) { meet = []; return; } meet = SEED.map((x) => ({ id: LM.uid(), week: '2026-10-25', ...x, createdAt: new Date().toISOString() })); await saveMeet(); }
+      const saveMeet = () => LM.db.put('templates', { dept: MK, items: meet });
+      const wk = (d) => { const e = new Date(d + 'T00:00:00Z'); if (isNaN(e)) return d; const st = new Date(e - 6 * 86400000); const f = (x) => x.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }); return `${f(st)} – ${f(e)} ${e.getUTCFullYear()}`; };
+      function meetingsCard(onlyLatest) {
+        const weeks = [...new Set(meet.map((m) => m.week))].sort().reverse(); const show = onlyLatest ? weeks.slice(0, 1) : weeks; let editing = null;
+        const wrap = h('div', { class: 'card', style: 'margin-bottom:12px' });
+        const render = () => { wrap.replaceChildren(h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, onlyLatest ? 'Last week’s supplier meetings' : 'Supplier meetings'), onlyLatest && weeks[0] ? h('span', { class: 'sub' }, wk(weeks[0])) : null, h('div', { class: 'spacer' }), onlyLatest ? h('button', { class: 'btn small', onclick: () => { sub = 'Supplier meetings'; draw(); } }, 'Open') : null),
+          ...(!show.length ? [h('div', { class: 'sub', style: 'margin-top:6px' }, 'No supplier meetings recorded yet.')] : show.map((w) => h('div', { style: 'margin-top:8px' }, onlyLatest ? null : h('div', { class: 'sub', style: 'font-weight:600' }, wk(w)),
+            meet.filter((m) => m.week === w).map((m) => editing === m.id ? editRow(m) : h('div', { style: 'display:flex;gap:10px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)' }, h('div', { style: 'flex:1;min-width:0' }, h('b', {}, m.supplier), h('div', { dir: 'auto', style: 'white-space:pre-wrap;word-break:break-word' }, m.topic)),
+              roMeet() || onlyLatest ? null : h('span', {}, h('button', { class: 'btn small', onclick: () => { editing = m.id; render(); } }, 'Edit'), ' ', h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the note for ${m.supplier}?`)) { meet = meet.filter((x) => x.id !== m.id); await saveMeet(); draw(); } } }, 'Delete'))))))),
+          onlyLatest || roMeet() ? null : addForm()); };
+        const editRow = (m) => { const a = h('input', { value: m.supplier, style: 'padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)' }), t = h('textarea', { rows: 3, style: 'width:100%;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)' }); t.value = m.topic;
+          return h('div', { style: 'padding:6px 0;border-top:1px solid var(--line)' }, a, t, h('div', { class: 'tools', style: 'margin-top:6px' }, h('button', { class: 'btn primary small', onclick: async () => { if (!a.value.trim() || !t.value.trim()) return; m.supplier = a.value.trim(); m.topic = t.value.trim(); editing = null; await saveMeet(); draw(); } }, 'Save'), h('button', { class: 'btn small', onclick: () => { editing = null; render(); } }, 'Cancel'))); };
+        const addForm = () => { const d = h('input', { type: 'date', value: lastWeekEnd() }), a = h('input', { placeholder: 'Supplier', style: 'padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)' }), t = h('textarea', { rows: 3, placeholder: 'What was discussed…', style: 'width:100%;margin-top:6px;padding:8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)' });
+          return h('div', { style: 'margin-top:12px;border-top:1px solid var(--line);padding-top:10px' }, h('div', { class: 'tools' }, h('b', {}, 'Add a meeting'), h('span', { class: 'sub' }, 'week ending'), d, a), t, h('button', { class: 'btn primary small', style: 'margin-top:6px', onclick: async () => { if (!a.value.trim() || !t.value.trim() || !d.value) return LM.say('Enter the supplier, what was discussed and the week-ending date.'); meet.unshift({ id: LM.uid(), week: d.value, supplier: a.value.trim(), topic: t.value.trim(), createdAt: new Date().toISOString() }); await saveMeet(); LM.toast('Meeting note saved'); draw(); } }, 'Add')); };
+        render(); return wrap; }
+
       const body = h('div');
       function draw() {
         LM.killCharts();
         panel.replaceChildren(h('div', { class: 'head' }, h('h2', {}, 'Procurement'), h('span', { class: 'sub' }, 'Upload the pending PR and pending PO files (together or separately).'), h('div', { class: 'spacer' }), LM.filePicker(uploadMany, 'Upload Procurement files', true)), body);
         LM.dropZone(panel, uploadMany, true);
-        if (!sets.length) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No procurement reports uploaded yet'), h('div', { style: 'display:inline-grid;gap:4px;text-align:left' }, Object.values(T).map((t) => h('div', {}, h('b', {}, t.label), ' – ', h('span', { class: 'sub' }, t.hint))))));
-        const tabs = ['Overview', 'Pending POs', 'Pending PRs', 'Uploads'];
-        body.replaceChildren(h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, 'Pending POs': poTab, 'Pending PRs': prTab, Uploads: uploads }[sub]());
+        if (!sets.length) return body.replaceChildren(meetingsCard(false), h('div', { class: 'empty' }, h('h3', {}, 'No procurement reports uploaded yet'), h('div', { style: 'display:inline-grid;gap:4px;text-align:left' }, Object.values(T).map((t) => h('div', {}, h('b', {}, t.label), ' – ', h('span', { class: 'sub' }, t.hint))))));
+        const tabs = ['Overview', 'Pending POs', 'Pending PRs', 'Supplier meetings', 'Uploads'];
+        body.replaceChildren(h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, 'Pending POs': poTab, 'Pending PRs': prTab, 'Supplier meetings': () => meetingsCard(false), Uploads: uploads }[sub]());
       }
       const none = (t) => h('div', { class: 'banner' }, `No ${T[t].label} uploaded yet.`);
       const barChart = (host, labels, data, horizontal, fmt) => LM.chart(host, { type: 'bar', data: { labels, datasets: [{ data, backgroundColor: LM.css('--accent') }] }, options: { indexAxis: horizontal ? 'y' : 'x', plugins: { legend: { display: false } }, scales: { [horizontal ? 'x' : 'y']: { ticks: { callback: (v) => (fmt ? fmt(v) : v) } } } } });
@@ -58,7 +80,7 @@
 
       /* ---------- Overview ---------- */
       function overview() {
-        const po = cur('po'), pr = cur('pr'); const el = h('div', { class: 'grid half' });
+        const po = cur('po'), pr = cur('pr'); const el = h('div', { class: 'grid half' }); if (meet.length) el.append(h('div', { style: 'grid-column:1/-1' }, meetingsCard(true)));
         if (po) { const c = poC(po), p = prev('po'), pc = p ? poC(p) : null, m = mv('po', (x) => x.order);
           el.append(h('div', { class: 'card' }, h('div', { class: 'tools' }, h('b', {}, 'Pending POs (awaiting approval)'), h('span', { class: 'sub' }, 'as of ' + po.end), h('div', { class: 'spacer' }), h('button', { class: 'btn small', onclick: () => { sub = 'Pending POs'; draw(); } }, 'Open')),
             h('div', { class: 'grid kpis', style: 'margin:8px 0 0' }, kpi('Orders', num(c.n), pc ? chg(c.n, pc.n) : `${new Set(c.rows.map((x) => x.supplier)).size} suppliers`), kpi('Value (SAR)', compact(c.total), pc ? chg(Math.round(c.total), Math.round(pc.total)).replace(/(-?\+?\d[\d,]*)/, (x) => compact(+x.replace(/,/g, ''))) : 'converted at stored rates'), kpi('Older than 90 days', c.over90, `SAR ${compact(c.over90Value)}`), kpi('Oldest', c.oldest ? c.oldest.age + ' days' : '–', c.oldest ? c.oldest.order + ' · ' + c.oldest.supplier : '')), m ? h('div', { class: 'sub', style: 'margin-top:8px' }, `Since ${m.since}: ${m.added} new, ${m.cleared} cleared.`) : null)); } else el.append(none('po'));
