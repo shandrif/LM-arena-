@@ -33,7 +33,8 @@
   }
   const rin = h('input', { type: 'file', accept: '.json', style: 'display:none', onchange: () => rin.files[0] && restore(rin.files[0]) });
 
-  const snap = LM.snapshot.active;
+  (LM.ready || Promise.resolve()).catch(() => {}).then(() => {
+  const snap = LM.snapshot.active; const view = !!LM.viewOnly; LM.refresh = () => show(active);
   async function saveCopy() { try { await LM.snapshot.download(); } catch (e) { LM.say('Could not create the HTML copy: ' + e.message + (location.protocol === 'file:' ? '\n\nThis page was opened straight from a file; open the hosted dashboard (or the single-file build) to save copies.' : '')); } }
   function clearDialog() {
     const ov = h('div', { class: 'overlay' }); const close = () => ov.remove(); let saved = false;
@@ -49,9 +50,11 @@
   const m = LM.snapshot.meta || {};
   document.body.prepend(h('header', { class: 'top' },
     h('div', { class: 'bar' }, h('span', { class: 'brand' }, '☕ Weekly Department Dashboard'), h('div', { class: 'spacer' }),
-      snap ? null : [...(window.LM_NO_DOWNLOADS ? [] : [h('button', { class: 'btn small', onclick: saveCopy, title: 'Save the whole dashboard with its data as one HTML file (read-only copy)' }, '⬇ Download as HTML')]), h('button', { class: 'btn small danger', onclick: clearDialog, title: 'Remove all uploaded data to start a new week' }, 'Clear dashboard'),
+      snap ? null : view ? [...(window.LM_NO_DOWNLOADS ? [] : [h('button', { class: 'btn small', onclick: saveCopy, title: 'Save the whole dashboard with its data as one HTML file' }, '⬇ Download as HTML')])] : [...(window.LM_NO_DOWNLOADS ? [] : [h('button', { class: 'btn small', onclick: saveCopy, title: 'Save the whole dashboard with its data as one HTML file (read-only copy)' }, '⬇ Download as HTML')]), h('button', { class: 'btn small danger', onclick: clearDialog, title: 'Remove all uploaded data to start a new week' }, 'Clear dashboard'),
         ...(window.LM_NO_DOWNLOADS ? [] : [h('button', { class: 'btn small', onclick: backup, title: 'Download all stored data as one file (to restore later)' }, 'Backup'), h('button', { class: 'btn small', onclick: () => rin.click() }, 'Restore'), rin])]),
+    view ? h('div', { class: 'banner', style: 'margin:8px 16px' }, 'Shared live dashboard · view only. The owner uploads the weekly files; you always see the latest data.') : null,
     snap ? h('div', { class: 'banner', style: 'margin:8px 16px' }, `Saved copy · data up to ${m.latest || '–'} · saved ${(m.savedAt || '').slice(0, 16).replace('T', ' ')}. Read-only: uploads are switched off here. Open the live dashboard to add or change data.`) : null,
     tabs), panel);
   show(active);
+  });
 })();
