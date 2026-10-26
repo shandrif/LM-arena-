@@ -97,14 +97,18 @@
       function stock(ds) {
         const s = ds.data.soh; if (!s) return h('div', { class: 'banner' }, 'No stock-on-hand sheet in this report.'); const U = LM.roasting.byUse(s);
         const dc = (v, r) => (v == null ? h('span', { class: 'sub' }, '–') : h('span', {}, cover(v), ' ', chip(v)));
-        const gdc = (v, r) => (v == null ? h('span', { class: 'sub' }, '–') : r.covered ? h('span', {}, h('b', {}, v.toFixed(1)), ' ', h('span', { class: 'sub' }, `green bean stock only · roasted beans cover ${r.roastDoh.toFixed(1)} days`)) : h('span', {}, cover(v), ' ', chip(v)));
+        const gdc = (v, r) => (v == null ? h('span', { class: 'sub' }, '–') : r.covered ? h('span', {}, h('b', {}, v.toFixed(1)), ' ', h('span', { class: 'sub' }, 'green bean stock only')) : h('span', {}, cover(v), ' ', chip(v)));
         const gcols = [{ k: 'use', label: 'Used for', l: 1 }, { k: 'soh', label: 'Total stock (kg)', fmt: (v) => num(v) }, { k: 'doh', label: 'Total DOH (days)', fmt: gdc }];
         const rcols = [{ k: 'use', label: 'Used for', l: 1 }, { k: 'soh', label: 'Total SOH', fmt: (v) => num(v) }, { k: 'doh', label: 'Total DOH (days)', fmt: dc }];
+        const ukeys = [...new Set([...U.green.map((g) => g.use), ...U.roast.map((r) => r.use)])];
+        const urows = ukeys.map((u) => { const g = U.green.find((x) => x.use === u), r = U.roast.find((x) => x.use === u); return { use: u, gsoh: g ? g.soh : null, g: g || null, rsoh: r ? r.soh : null, r: r || null }; });
+        const gd = (v, row) => (!row.g ? h('span', { class: 'sub' }, '–') : gdc(row.g.doh, row.g)); const rd = (v, row) => (!row.r ? h('span', { class: 'sub' }, '–') : dc(row.r.doh, row.r));
+        const ucols = [{ k: 'use', label: 'Used for', l: 1 }, { k: 'gsoh', label: 'Green: total stock (kg)', fmt: (v) => (v == null ? '–' : num(v)) }, { k: 'gdoh', label: 'Green: total DOH (days)', fmt: gd }, { k: 'rsoh', label: 'Roasted: total SOH', fmt: (v) => (v == null ? '–' : num(v)) }, { k: 'rdoh', label: 'Roasted: total DOH (days)', fmt: rd }];
         const bars = [...U.green.filter((g) => g.doh != null).map((g) => [g.use + ' (green)', g.doh, g.covered]), ...U.roast.filter((x) => x.doh != null).map((x) => [x.use + ' (roasted)', x.doh, false])];
         const gdet = s.green.flatMap((g) => g.items.map((i) => ({ group: g.name, origin: i.origin, soh: i.soh, doh: i.doh, pipeline: i.pipeline, eta: i.eta, status: i.status })));
         const el = h('div', {}, h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Stock as of ${s.date || '–'}. One line per use, with the sheet's own Total stock and Total DOH for green beans. Red under 7 days, amber under 14; green beans are not flagged when the roasted beans for that use already cover 14+ days.`),
                     h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Days on hand by use'), h('div', { class: 'chart', id: 'c1', style: 'height:' + Math.max(260, bars.length * 24) + 'px' })),
-          h('h3', {}, 'Green beans (kg)'), LM.table(gcols, U.green, { sort: null }), h('h3', { style: 'margin-top:14px' }, 'Roasted beans'), LM.table(rcols, U.roast, { sort: null }),
+          h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Stock by use: green and roasted'), LM.table(ucols, urows, { sort: null })),
           h('details', { class: 'card', style: 'margin-top:12px' }, h('summary', {}, 'Detail by origin and by roasted product'),
             LM.table([{ k: 'group', label: 'Used for', l: 1 }, { k: 'origin', label: 'Origin', l: 1 }, { k: 'soh', label: 'SOH (kg)', fmt: (v) => (v == null ? '–' : num(v)) }, { k: 'doh', label: 'Days on hand', fmt: cover }, { k: 'pipeline', label: 'Orders in pipeline', l: 1, cls: 'wrap' }, { k: 'eta', label: 'ETA', l: 1 }, { k: 'status', label: 'Status', l: 1 }], gdet, { sort: null }),
             LM.table([{ k: 'type', label: 'Roasted product', l: 1 }, { k: 'soh', label: 'SOH', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'target', label: 'Target / month', fmt: (v) => (v ? num(v) : '') }, { k: 'doh', label: 'Days on hand', fmt: dc }], s.roast, { sort: null })),
