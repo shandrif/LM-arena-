@@ -113,13 +113,13 @@
       function storeAvgCard(c) {
         const hasLy = c.k.hasLy; const rows = c.stores.filter((x) => x.ty.n || x.ly.n);
         const cell = (v) => (v == null ? '–' : num(v));
-        const body = rows.map((x) => h('tr', {}, h('td', { class: 'l' }, x.name), h('td', {}, cell(x.ty.avg)), h('td', {}, x.ty.n || '–'), ...(hasLy ? [h('td', {}, x.ly.n ? cell(x.ly.avg) : (x.ty.n ? 'new' : '–')), h('td', {}, x.yoy == null ? '–' : delta(x.yoy))] : [])));
+        const body = rows.map((x) => h('tr', {}, h('td', { class: 'l' }, x.name), h('td', {}, cell(x.ty.avg)), ...(hasLy ? [h('td', {}, x.ly.n ? cell(x.ly.avg) : (x.ty.n ? 'new' : '–')), h('td', {}, x.yoy == null ? '–' : delta(x.yoy))] : [])));
         const nt = c.net.ty, nl = c.net.ly;
-        const foot = h('tr', { style: 'font-weight:700' }, h('td', { class: 'l' }, 'All stores (network sales ÷ days)'), h('td', {}, cell(nt.avg)), h('td', {}, nt.n || '–'), ...(hasLy ? [h('td', {}, nl.n ? cell(nl.avg) : '–'), h('td', {}, nt.avg && nl.avg ? delta(nt.avg / nl.avg - 1) : '–')] : []));
+        const foot = h('tr', { style: 'font-weight:700' }, h('td', { class: 'l' }, 'All stores (network sales ÷ days)'), h('td', {}, cell(nt.avg)), ...(hasLy ? [h('td', {}, nl.n ? cell(nl.avg) : '–'), h('td', {}, nt.avg && nl.avg ? delta(nt.avg / nl.avg - 1) : '–')] : []));
         const ly = c.k.hasLy ? `${c.stores.length ? '' : ''}Last year covers the same dates (one year earlier).` : '';
         return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Average daily sales by store (SAR)'),
-          h('div', { style: 'max-height:380px;overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Store', 'This year', 'Trading days', ...(hasLy ? ['Last year', 'Change %'] : [])].map((t, i) => h('th', { class: i ? '' : 'l' }, t)))), h('tbody', {}, body, foot))),
-          h('div', { class: 'sub', style: 'margin-top:6px' }, `Net sales ÷ trading days. A trading day is a day with sales above zero, so closed days and days before an opening are not counted. ${ly}`));
+          h('div', { style: 'max-height:380px;overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Store', 'This year', ...(hasLy ? ['Last year', 'Change %'] : [])].map((t, i) => h('th', { class: i ? '' : 'l' }, t)))), h('tbody', {}, body, foot))),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, `Average of the days with sales. ${ly}`));
       }
       function weekdayStoreCard(c) {
         const W = c.WEEK; const key = wdView; const hasLy = c.k.hasLy; const rows = [{ name: 'All stores', p: c.net[key], net: true }, ...c.stores.map((x) => ({ name: x.name, p: x[key] }))].filter((r) => r.p.n);
