@@ -249,7 +249,7 @@
     k.mSales = sum(matched, (d) => d.sales); k.mLySales = sum(matched, (d) => d.ly.sales); k.mBills = sum(matched, (d) => d.bills); k.mLyBills = sum(matched, (d) => d.ly.bills);
     // weekday profile, this year vs the matching last-year dates
     const W = DOW.map((n) => ({ name: n, n: 0, sales: 0, bills: 0, lySales: 0, lyBills: 0 })); matched.forEach((d) => { const w = W[dayOfWeek(d.day)]; if (!w) return; w.n++; w.sales += d.sales; w.bills += d.bills; w.lySales += d.ly.sales; w.lyBills += d.ly.bills; });
-    const dow = W.filter((w) => w.n).map((w) => ({ ...w, avg: w.bills ? w.sales / w.bills : null, lyAvg: w.lyBills ? w.lySales / w.lyBills : null, yoy: w.lySales ? w.sales / w.lySales - 1 : null }));
+    const ORD = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']; const dow = W.filter((w) => w.n).sort((x, y) => ORD.indexOf(x.name) - ORD.indexOf(y.name)).map((w) => ({ ...w, avg: w.bills ? w.sales / w.bills : null, lyAvg: w.lyBills ? w.lySales / w.lyBills : null, yoy: w.lySales ? w.sales / w.lySales - 1 : null }));
     // average daily sales per store and per weekday (Sat first). A trading day = a day with net sales above 0 for that store.
     // Last year uses only the dates that line up with this year's period, so both sides cover the same window.
     const WEEK = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']; const first = days.length ? days[0].day : null, last = days.length ? days[days.length - 1].day : null;
