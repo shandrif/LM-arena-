@@ -9,7 +9,7 @@
     id: 'procurement', label: 'Procurement',
     async mount(panel) {
       let sets = [], tpl = { dept: 'procurement' }, sub = 'Overview', prView = 'Requisitions'; const sel = {};
-      const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'procurement'); tpl = { dept: 'procurement', ...((await LM.db.get('templates', 'procurement')) || {}) }; await loadMeet(); draw(); };
+      const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'procurement'); tpl = { dept: 'procurement', ...((await LM.db.get('templates', 'procurement')) || {}) }; await loadMeet(); await loadOther(); draw(); };
       const of = (t) => sets.filter((s) => s.type === t).sort((a, b) => (a.end < b.end ? 1 : -1));
       const cur = (t) => { const l = of(t); return l.find((s) => s.id === sel[t]) || l[0] || null; };
       const prev = (t) => { const c = cur(t); return c ? of(t).find((s) => s.end < c.end) || null : null; };
@@ -65,14 +65,38 @@
           return h('div', { style: 'margin-top:12px;border-top:1px solid var(--line);padding-top:10px' }, h('div', { class: 'tools' }, h('b', {}, 'Add a meeting'), h('span', { class: 'sub' }, 'week ending'), d, a), t, h('button', { class: 'btn primary small', style: 'margin-top:6px', onclick: async () => { if (!a.value.trim() || !t.value.trim() || !d.value) return LM.say('Enter the supplier, what was discussed and the week-ending date.'); meet.unshift({ id: LM.uid(), week: d.value, supplier: a.value.trim(), topic: t.value.trim(), createdAt: new Date().toISOString() }); await saveMeet(); LM.toast('Meeting note saved'); draw(); } }, 'Add')); };
         render(); return wrap; }
 
+      /* ---------- critical & overstock (built from the Warehouse and Roasting reports + open PRs) ---------- */
+      let other = { wh: null, roast: null }; let crQ = '';
+      async function loadOther() { const all = await LM.db.all('datasets'); const last = (d, t) => all.filter((x) => x.dept === d && (!t || x.type === t)).sort((a, b) => (a.end < b.end ? 1 : -1))[0] || null; other = { wh: last('warehouse'), roast: last('roasting', 'roasting') }; }
+      function critical() {
+        const num = LM.num, compact = LM.compact;         const el = h('div', {}, h('div', { class: 'banner', style: 'margin-bottom:12px' }, 'Critical = zero stock, or under 7 days of cover. Overstock = the dead stock list. Covers all items in the reports below.'));
+        const wh = other.wh, inv = wh && wh.data.inventory; const zero = inv ? inv.items.filter((i) => !(i.totalQty > 0)).map((i) => { return { code: i.code, name: i.name, unit: i.unit, cost: i.cost }; }) : [];
+        zero.sort((a, b) => (a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1));
+        const roast = other.roast && other.roast.data.soh ? LM.roasting.byUse(other.roast.data.soh) : null; const low = [];
+        if (roast) { roast.roast.forEach((r) => { if (r.doh != null && r.doh < 7) low.push({ use: r.use, kind: 'Roasted', soh: r.soh, doh: r.doh, note: '' }); }); roast.green.forEach((g) => { if (g.doh != null && g.doh < 7 && !g.covered) low.push({ use: g.use, kind: 'Green', soh: g.soh, doh: g.doh, note: g.incoming.join(' | ') }); }); low.sort((a, b) => a.doh - b.doh); }
+        const dead = wh && wh.data.dead; const ex = dead ? dead.exec : {}; const exv = (k) => (ex[k] ? ex[k] : null);
+        el.append(h('div', { class: 'grid kpis' }, kpi('Zero-stock items', wh ? num(zero.length) : '–', wh ? `of ${num(inv.items.length)} items in the count` : 'no warehouse report'), kpi('Coffee under 7 days', roast ? num(low.length) : '–', roast ? `as of ${other.roast.end}` : 'no roasting report'), kpi('Dead stock', exv('totaldeadstock') ? exv('totaldeadstock').text : '–', exv('totaldeadstock') ? exv('totaldeadstock').sub : 'no warehouse report')));
+        const q = crQ.toLowerCase(); const zr = zero.filter((z) => !q || (z.name + ' ' + z.code).toLowerCase().includes(q));
+        const zc = [{ k: 'code', label: 'Code', l: 1 }, { k: 'name', label: 'Item', l: 1, cls: 'wrap' }, { k: 'unit', label: 'Unit', l: 1 }, { k: 'cost', label: 'Avg cost (SAR)', fmt: (v) => (v == null ? '–' : LM.num2(v)) }];
+        const search = h('input', { type: 'search', placeholder: 'Search items…', value: crQ, oninput: (e) => { crQ = e.target.value; const t = zt; if (t && t.redraw) t.redraw(zero.filter((z) => !crQ || (z.name + ' ' + z.code).toLowerCase().includes(crQ.toLowerCase()))); } });
+        const zt = LM.table(zc, zr, { sort: null });
+        el.append(h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Critical: zero stock in all warehouses'), wh ? h('span', { class: 'sub' }, `Warehouse inventory count · ${other.wh.end}`) : null, h('div', { class: 'spacer' }), search, zero.length ? h('button', { class: 'btn small', onclick: () => LM.csv(zc.map((c) => ({ ...c, fmt: undefined })), zero, 'zero-stock-items.csv') }, 'Export CSV') : null),
+          wh ? (inv ? [h('div', { class: 'sub', style: 'margin:4px 0 8px' }, 'Items with no stock in any warehouse. The pending PR file uses different item codes from the warehouse count, so open PRs cannot be matched automatically; check the Pending PRs tab.'), zt] : h('div', { class: 'sub' }, 'The warehouse report has no inventory count sheet.')) : h('div', { class: 'banner' }, 'Upload the Warehouse report to see zero-stock items.')));
+        el.append(h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Critical: coffee under 7 days of cover'), roast ? (low.length ? LM.table([{ k: 'use', label: 'Used for', l: 1 }, { k: 'kind', label: 'Beans', l: 1 }, { k: 'soh', label: 'Total stock', fmt: (v) => num(v) }, { k: 'doh', label: 'Days on hand', fmt: (v) => v.toFixed(1) }, { k: 'note', label: 'Orders in pipeline', l: 1, cls: 'wrap' }], low, { sort: null }) : h('div', { class: 'sub', style: 'margin-top:6px' }, 'None. Green beans are not counted when roasted beans for that use already cover 14+ days.')) : h('div', { class: 'banner' }, 'Upload the Roasting report to see coffee cover.'),
+          h('div', { class: 'sub', style: 'margin-top:8px' }, 'Days of cover for other items (packaging, chocolate, Lotus …) needs a monthly usage figure per item, which is not in the current reports.')));
+        el.append(h('div', { class: 'card' }, h('h3', {}, 'Overstock: dead stock'), dead ? [h('div', { class: 'grid kpis', style: 'margin-top:6px' }, ['totaldeadstock', 'valueatrisk', 'recoverableorconsumable'].map((k) => (exv(k) ? kpi(exv(k).label, exv(k).text, exv(k).sub) : null)), exv('writeoffdisposal') ? kpi(exv('writeoffdisposal').label, exv('writeoffdisposal').text, exv('writeoffdisposal').sub) : null),
+          dead.buckets.length ? LM.table([{ k: 'name', label: 'Expiry bucket', l: 1 }, { k: 'value', label: 'Value (SAR)', fmt: (v) => num(v) }], dead.buckets, { sort: null }) : null,
+          h('div', { class: 'sub', style: 'margin-top:8px' }, `From the Dead Stock sheet (${other.wh.end}). The sheet gives totals only (${exv('totaldeadstock') ? exv('totaldeadstock').sub : ''}), not the item names; send the item-level dead stock list to show each item here.`)] : h('div', { class: 'banner' }, 'Upload the Warehouse report to see dead stock.')));
+        return el;
+      }
       const body = h('div');
       function draw() {
         LM.killCharts();
         panel.replaceChildren(h('div', { class: 'head' }, h('h2', {}, 'Procurement'), h('span', { class: 'sub' }, 'Upload the pending PR and pending PO files (together or separately).'), h('div', { class: 'spacer' }), LM.filePicker(uploadMany, 'Upload Procurement files', true)), body);
         LM.dropZone(panel, uploadMany, true);
         if (!sets.length) return body.replaceChildren(meetingsCard(false), h('div', { class: 'empty' }, h('h3', {}, 'No procurement reports uploaded yet'), h('div', { style: 'display:inline-grid;gap:4px;text-align:left' }, Object.values(T).map((t) => h('div', {}, h('b', {}, t.label), ' – ', h('span', { class: 'sub' }, t.hint))))));
-        const tabs = ['Overview', 'Pending POs', 'Pending PRs', 'Supplier meetings', 'Uploads'];
-        body.replaceChildren(h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, 'Pending POs': poTab, 'Pending PRs': prTab, 'Supplier meetings': () => meetingsCard(false), Uploads: uploads }[sub]());
+        const tabs = ['Overview', 'Pending POs', 'Pending PRs', 'Critical & overstock', 'Supplier meetings', 'Uploads'];
+        body.replaceChildren(h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, 'Pending POs': poTab, 'Pending PRs': prTab, 'Critical & overstock': critical, 'Supplier meetings': () => meetingsCard(false), Uploads: uploads }[sub]());
       }
       const none = (t) => h('div', { class: 'banner' }, `No ${T[t].label} uploaded yet.`);
       const barChart = (host, labels, data, horizontal, fmt) => LM.chart(host, { type: 'bar', data: { labels, datasets: [{ data, backgroundColor: LM.css('--accent') }] }, options: { indexAxis: horizontal ? 'y' : 'x', plugins: { legend: { display: false } }, scales: { [horizontal ? 'x' : 'y']: { ticks: { callback: (v) => (fmt ? fmt(v) : v) } } } } });
