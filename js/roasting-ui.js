@@ -60,7 +60,7 @@
       /* ---------- alerts ---------- */
       function alerts(d) {
         const A = []; if (!d.soh) return A;
-        const U = LM.roasting.byUse(d.soh); U.green.forEach((g) => { const doh = g.doh; if (g.target > 0 && doh != null && doh < 14) A.push({ lvl: doh < 7 ? 'error' : 'warn', text: `Green beans – ${g.use}: ${doh.toFixed(1)} days of stock (target ${num(g.target)} kg/month)`, pipe: g.incoming.join(' | ') });
+        const U = LM.roasting.byUse(d.soh); U.green.forEach((g) => { const doh = g.doh; if (g.target > 0 && doh != null && doh < 14 && !g.covered) A.push({ lvl: doh < 7 ? 'error' : 'warn', text: `Green beans – ${g.use}: ${doh.toFixed(1)} days of stock (target ${num(g.target)} kg/month)`, pipe: g.incoming.join(' | ') });
           g.lines.forEach((i) => { if (/delay/i.test(i.status)) A.push({ lvl: 'warn', text: `Delayed shipment – ${g.use} / ${i.origin}: ${[i.pipeline, i.eta].filter(Boolean).join(', ')}` }); }); });
         U.roast.forEach((x) => { if (x.doh != null && x.doh < 14) A.push({ lvl: x.doh < 7 ? 'error' : 'warn', text: `Roasted – ${x.use}: ${x.doh.toFixed(1)} days of stock` }); });
         return A.sort((a, b) => (a.lvl === b.lvl ? 0 : a.lvl === 'error' ? -1 : 1));
@@ -97,19 +97,19 @@
       function stock(ds) {
         const s = ds.data.soh; if (!s) return h('div', { class: 'banner' }, 'No stock-on-hand sheet in this report.'); const U = LM.roasting.byUse(s);
         const dc = (v, r) => (v == null ? h('span', { class: 'sub' }, '–') : h('span', {}, cover(v), ' ', chip(v)));
-        const gcols = [{ k: 'use', label: 'Used for', l: 1 }, { k: 'soh', label: 'Total SOH (kg)', fmt: (v) => num(v) }, { k: 'target', label: 'Target / month', fmt: (v) => (v ? num(v) : '–') }, { k: 'doh', label: 'Total DOH (days)', fmt: dc }, { k: 'incoming', label: 'Orders in pipeline', l: 1, cls: 'wrap', fmt: (v, r) => (v && v.length ? h('span', { class: r.delayed ? 'down' : '' }, v.join(' | ')) : '') }];
-        const rcols = [{ k: 'use', label: 'Used for', l: 1 }, { k: 'soh', label: 'Total SOH', fmt: (v) => num(v) }, { k: 'target', label: 'Target / month', fmt: (v) => (v ? num(v) : '–') }, { k: 'doh', label: 'Total DOH (days)', fmt: dc }];
-        const bars = [...U.green.filter((g) => g.doh != null).map((g) => [g.use + ' (green)', g.doh]), ...U.roast.filter((x) => x.doh != null).map((x) => [x.use + ' (roasted)', x.doh])];
+        const gdc = (v, r) => (v == null ? h('span', { class: 'sub' }, '–') : r.covered ? h('span', {}, h('b', {}, v.toFixed(1)), ' ', h('span', { class: 'sub' }, `green bean stock only · roasted beans cover ${r.roastDoh.toFixed(1)} days`)) : h('span', {}, cover(v), ' ', chip(v)));
+        const gcols = [{ k: 'use', label: 'Used for', l: 1 }, { k: 'soh', label: 'Total stock (kg)', fmt: (v) => num(v) }, { k: 'doh', label: 'Total DOH (days)', fmt: gdc }];
+        const rcols = [{ k: 'use', label: 'Used for', l: 1 }, { k: 'soh', label: 'Total SOH', fmt: (v) => num(v) }, { k: 'doh', label: 'Total DOH (days)', fmt: dc }];
+        const bars = [...U.green.filter((g) => g.doh != null).map((g) => [g.use + ' (green)', g.doh, g.covered]), ...U.roast.filter((x) => x.doh != null).map((x) => [x.use + ' (roasted)', x.doh, false])];
         const gdet = s.green.flatMap((g) => g.items.map((i) => ({ group: g.name, origin: i.origin, soh: i.soh, doh: i.doh, pipeline: i.pipeline, eta: i.eta, status: i.status })));
-        const el = h('div', {}, h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Stock as of ${s.date || '–'}. One line per use. Total SOH = sum of its lines; days on hand = total SOH ÷ monthly target × 30. Red under 7 days, amber under 14.`),
-          U.checks.length ? h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Check against the sheet'), U.checks.map((t) => h('div', { class: 'issue warn' }, h('div', { class: 'tag' }, 'CHECK'), h('div', {}, t)))) : null,
-          h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Days on hand by use'), h('div', { class: 'chart', id: 'c1', style: 'height:' + Math.max(260, bars.length * 24) + 'px' })),
+        const el = h('div', {}, h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Stock as of ${s.date || '–'}. One line per use, with the sheet's own Total stock and Total DOH for green beans. Red under 7 days, amber under 14; green beans are not flagged when the roasted beans for that use already cover 14+ days.`),
+                    h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Days on hand by use'), h('div', { class: 'chart', id: 'c1', style: 'height:' + Math.max(260, bars.length * 24) + 'px' })),
           h('h3', {}, 'Green beans (kg)'), LM.table(gcols, U.green, { sort: null }), h('h3', { style: 'margin-top:14px' }, 'Roasted beans'), LM.table(rcols, U.roast, { sort: null }),
           h('details', { class: 'card', style: 'margin-top:12px' }, h('summary', {}, 'Detail by origin and by roasted product'),
             LM.table([{ k: 'group', label: 'Used for', l: 1 }, { k: 'origin', label: 'Origin', l: 1 }, { k: 'soh', label: 'SOH (kg)', fmt: (v) => (v == null ? '–' : num(v)) }, { k: 'doh', label: 'Days on hand', fmt: cover }, { k: 'pipeline', label: 'Orders in pipeline', l: 1, cls: 'wrap' }, { k: 'eta', label: 'ETA', l: 1 }, { k: 'status', label: 'Status', l: 1 }], gdet, { sort: null }),
             LM.table([{ k: 'type', label: 'Roasted product', l: 1 }, { k: 'soh', label: 'SOH', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'target', label: 'Target / month', fmt: (v) => (v ? num(v) : '') }, { k: 'doh', label: 'Days on hand', fmt: dc }], s.roast, { sort: null })),
           ds.data.sku && ds.data.sku.length ? h('div', { class: 'card', style: 'margin-top:12px' }, h('h3', {}, '250g stock (pieces)'), LM.table([{ k: 'sku', label: 'SKU', l: 1 }, { k: 'pcs', label: 'Pieces', fmt: num }], ds.data.sku, { sort: 'pcs' })) : null);
-        setTimeout(() => LM.chart(el.querySelector('#c1'), { type: 'bar', data: { labels: bars.map((b) => b[0]), datasets: [{ data: bars.map((b) => b[1]), backgroundColor: bars.map((b) => (b[1] < 7 ? LM.css('--bad') : b[1] < 14 ? LM.css('--warn') : LM.css('--accent'))) }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } })); return el;
+        setTimeout(() => LM.chart(el.querySelector('#c1'), { type: 'bar', data: { labels: bars.map((b) => b[0]), datasets: [{ data: bars.map((b) => b[1]), backgroundColor: bars.map((b) => (b[2] ? LM.css('--ly') : b[1] < 7 ? LM.css('--bad') : b[1] < 14 ? LM.css('--warn') : LM.css('--accent'))) }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } } } })); return el;
       }
 
       function planning(ds) {
