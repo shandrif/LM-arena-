@@ -68,6 +68,16 @@
       /* ---------- critical & overstock (built from the Warehouse and Roasting reports + open PRs) ---------- */
       let other = { wh: null, roast: null }; let crQ = '';
       async function loadOther() { const all = await LM.db.all('datasets'); const last = (d, t) => all.filter((x) => x.dept === d && (!t || x.type === t)).sort((a, b) => (a.end < b.end ? 1 : -1))[0] || null; other = { wh: last('warehouse'), roast: last('roasting', 'roasting') }; }
+      let openBucket = null;
+      function bucketsView(buckets, summary) {
+        const wrap = h('div'); const exp = (summary && summary.expired) || [];
+        const render = () => { const rows = buckets.map((b) => { const isExp = /^expired/i.test(b.name); const on = openBucket === b.name;
+          return h('tr', { style: 'cursor:pointer;' + (on ? 'background:var(--accent-bg,#f3ebe4)' : ''), onclick: () => { openBucket = on ? null : b.name; render(); } }, h('td', { class: 'l' }, (on ? '▾ ' : '▸ ') + b.name), h('td', {}, LM.num(b.value)), h('td', { class: 'l sub' }, isExp ? `${exp.length} item(s) listed · click to see` : 'click for details')); });
+          const det = !openBucket ? null : /^expired/i.test(openBucket) ? (exp.length ? h('div', { style: 'margin:8px 0' }, LM.table([{ k: 'name', label: 'Item', l: 1, cls: 'wrap' }, { k: 'qty', label: 'Quantity', fmt: (v) => LM.num(v) }, { k: 'expiry', label: 'Expiry date', l: 1 }, { k: 'shelf', label: 'Days past expiry', fmt: (v) => (v == null ? '' : Math.abs(v)) }, { k: 'supplier', label: 'Supplier', l: 1 }, { k: 'value', label: 'Value at risk (SAR)', fmt: (v) => LM.num(v) }], exp, { sort: null }), summary.expiredSubtotal ? h('div', { class: 'sub', style: 'margin-top:4px' }, `Subtotal ${LM.num(summary.expiredSubtotal.qty)} units · SAR ${LM.num(summary.expiredSubtotal.value)}`) : null) : h('div', { class: 'banner', style: 'margin:8px 0' }, 'The report has no expired item detail. Re-upload the latest Warehouse report if it should.'))
+            : h('div', { class: 'banner', style: 'margin:8px 0' }, `“${openBucket}”: the report gives only the total value for this bucket, not the items. Send the item-level expiry list (item, batch, quantity, expiry date) to list them here.`);
+          wrap.replaceChildren(h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Expiry bucket', 'Value (SAR)', ''].map((t, i) => h('th', { class: i === 1 ? '' : 'l' }, t)))), h('tbody', {}, rows)), det); };
+        render(); return wrap;
+      }
       function critical() {
         const num = LM.num, compact = LM.compact;         const el = h('div', {}, h('div', { class: 'banner', style: 'margin-bottom:12px' }, 'Critical = zero stock, or under 7 days of cover. Overstock = the dead stock list. Covers all items in the reports below.'));
         const wh = other.wh, inv = wh && wh.data.inventory; const zero = inv ? inv.items.filter((i) => !(i.totalQty > 0)).map((i) => { return { code: i.code, name: i.name, unit: i.unit, cost: i.cost }; }) : [];
@@ -85,8 +95,8 @@
         el.append(h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Critical: coffee under 7 days of cover'), roast ? (low.length ? LM.table([{ k: 'use', label: 'Used for', l: 1 }, { k: 'kind', label: 'Beans', l: 1 }, { k: 'soh', label: 'Total stock', fmt: (v) => num(v) }, { k: 'doh', label: 'Days on hand', fmt: (v) => v.toFixed(1) }, { k: 'note', label: 'Orders in pipeline', l: 1, cls: 'wrap' }], low, { sort: null }) : h('div', { class: 'sub', style: 'margin-top:6px' }, 'None. Green beans are not counted when roasted beans for that use already cover 14+ days.')) : h('div', { class: 'banner' }, 'Upload the Roasting report to see coffee cover.'),
           h('div', { class: 'sub', style: 'margin-top:8px' }, 'Days of cover for other items (packaging, chocolate, Lotus …) needs a monthly usage figure per item, which is not in the current reports.')));
         el.append(h('div', { class: 'card' }, h('h3', {}, 'Overstock: dead stock'), dead ? [h('div', { class: 'grid kpis', style: 'margin-top:6px' }, ['totaldeadstock', 'valueatrisk', 'recoverableorconsumable'].map((k) => (exv(k) ? kpi(exv(k).label, exv(k).text, exv(k).sub) : null)), exv('writeoffdisposal') ? kpi(exv('writeoffdisposal').label, exv('writeoffdisposal').text, exv('writeoffdisposal').sub) : null),
-          dead.buckets.length ? LM.table([{ k: 'name', label: 'Expiry bucket', l: 1 }, { k: 'value', label: 'Value (SAR)', fmt: (v) => num(v) }], dead.buckets, { sort: null }) : null,
-          h('div', { class: 'sub', style: 'margin-top:8px' }, `From the Dead Stock sheet (${other.wh.end}). The sheet gives totals only (${exv('totaldeadstock') ? exv('totaldeadstock').sub : ''}), not the item names; send the item-level dead stock list to show each item here.`)] : h('div', { class: 'banner' }, 'Upload the Warehouse report to see dead stock.')));
+          dead.buckets.length ? bucketsView(dead.buckets, wh.data.summary) : null,
+          h('div', { class: 'sub', style: 'margin-top:8px' }, `From the Dead Stock sheet (${other.wh.end}). Only the expired items are listed by name; for the other buckets the sheet gives totals (${exv('totaldeadstock') ? exv('totaldeadstock').sub : ''}). Send the item-level dead stock list to show every item here.`)] : h('div', { class: 'banner' }, 'Upload the Warehouse report to see dead stock.')));
         return el;
       }
       const body = h('div');
