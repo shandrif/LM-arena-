@@ -122,5 +122,21 @@
     return { ds: { type: 'roasting', start: useDate, end: useDate, data }, issues };
   }
 
-  LM.roasting = { analyze, isoWeekEnd, parseSOH };
+  /* One line per use. Green beans follow the sheet's own groups (Espresso, Ethiopia Drip, New B2C/B2B ...); roasted products are
+     folded into the same uses by name. Total SOH = sum of the lines; DOH = total SOH ÷ monthly target × 30. The sheet's own totals are
+     only used to flag differences. */
+  const USE = [[/^espresso/i, 'Espresso'], [/^drip\s*ethiop/i, 'Ethiopia Drip'], [/^drip\s*brazil/i, 'Brazilian Drip'], [/^b2c\s*colomb/i, 'B2C Colombian'], [/^b2c\s*brazil/i, 'B2C Brazilian'], [/^b2c\s*ethiop/i, 'B2C Ethiopian'], [/^b2c/i, 'New B2C/B2B'], [/^v60/i, 'V60'], [/^ufo\s*ethiop/i, 'UFO ETHIOPAN'], [/^ufo/i, 'UFO BLEND']];
+  const useOf = (t) => { const f = USE.find(([re]) => re.test(String(t).trim())); return f ? f[1] : String(t).trim(); };
+  function byUse(soh) {
+    const out = { green: [], roast: [], checks: [] }; if (!soh) return out; const dohOf = (st, tg) => (tg > 0 && st != null ? (st / tg) * 30 : null);
+    soh.green.forEach((g) => { const lines = g.items.filter((i) => i.soh != null); const total = lines.reduce((a, i) => a + i.soh, 0); const incoming = g.items.map((i) => [i.pipeline, i.eta, i.status].filter(Boolean).join(' · ')).filter(Boolean);
+      const o = { use: g.name, soh: total, target: g.target, doh: dohOf(total, g.target), lines: g.items, incoming, delayed: g.items.some((i) => /delay/i.test(i.status || '')) }; out.green.push(o);
+      if (g.totalStock != null && Math.abs(g.totalStock - total) > 0.5) out.checks.push(`Green beans – ${g.name}: the lines add up to ${Math.round(total).toLocaleString()} kg but the sheet's "Total stock" says ${Math.round(g.totalStock).toLocaleString()} kg.`);
+      if (g.totalDoh != null && o.doh != null && DOH_TOL(g.totalDoh, o.doh)) out.checks.push(`Green beans – ${g.name}: the sheet's Total DOH is ${g.totalDoh.toFixed(1)} but total SOH ÷ target × 30 = ${o.doh.toFixed(1)}.`); });
+    const R = new Map(); soh.roast.forEach((x) => { const u = useOf(x.type); if (!R.has(u)) R.set(u, { use: u, soh: 0, targets: [], lines: [], sheetDoh: null }); const r = R.get(u); r.soh += x.soh || 0; if (x.target != null) r.targets.push(x.target); r.lines.push(x); if (x.totalDoh != null) r.sheetDoh = x.totalDoh; });
+    R.forEach((r) => { const t = r.targets.length ? (r.targets.every((v) => v === r.targets[0]) ? r.targets[0] : r.targets.reduce((a, v) => a + v, 0)) : null; r.target = t; r.doh = dohOf(r.soh, t); out.roast.push(r);
+      if (r.sheetDoh != null && r.doh != null && DOH_TOL(r.sheetDoh, r.doh)) out.checks.push(`Roasted – ${r.use}: the sheet's Total DOH is ${r.sheetDoh.toFixed(1)} but total SOH ÷ target × 30 = ${r.doh.toFixed(1)}.`); });
+    return out;
+  }
+  LM.roasting = { analyze, isoWeekEnd, parseSOH, byUse, useOf };
 })(typeof window !== 'undefined' ? window : globalThis);
