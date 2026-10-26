@@ -96,7 +96,8 @@
             kpi('Branches trading', num(k.branches), k.hasLy ? `${k.lyBranches} last year` : ''),
             kpi('Like-for-like sales', k.lflSales == null ? '–' : delta(k.lflSales), `${k.lflCount} branches both years`),
             kpi('Like-for-like traffic', k.lflTraffic == null ? '–' : delta(k.lflTraffic), 'same branches')),
-          k.hasLy ? compareCard(c) : h('div', { class: 'banner', style: 'margin-bottom:12px' }, 'This report has no last-year data, so no year-on-year comparison can be shown.'),
+          h('div', { class: 'grid two', style: 'margin-bottom:0;align-items:start' }, k.hasLy ? compareCard(c) : h('div', { class: 'banner', style: 'margin-bottom:12px' }, 'This report has no last-year data, so no year-on-year comparison can be shown.'), storeAvgCard(c)),
+          weekdayStoreCard(c),
           h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Key findings'), h('ul', { class: 'findings' }, F.map(([a, b]) => h('li', {}, h('b', {}, a + ': '), b)))),
           h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily net sales: this year vs last year', 'c1'), chartCard('Daily transactions: this year vs last year', 'c4')),
           h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily average check: this year vs last year', 'c5'), chartCard('Average sales by weekday: this year vs last year', 'c6')),
@@ -108,6 +109,27 @@
       const chartCard = (t, id) => h('div', { class: 'card' }, h('h3', {}, t), h('div', { class: 'chart', id }));
       const ty$ = () => LM.css('--accent'), ly$ = () => LM.css('--ly');
       const diff = (a, b, f = num) => (a == null || b == null ? '–' : `${a - b > 0 ? '+' : ''}${f(a - b)}`);
+      let wdView = 'ty';
+      function storeAvgCard(c) {
+        const hasLy = c.k.hasLy; const rows = c.stores.filter((x) => x.ty.n || x.ly.n);
+        const cell = (v) => (v == null ? '–' : num(v));
+        const body = rows.map((x) => h('tr', {}, h('td', { class: 'l' }, x.name), h('td', {}, cell(x.ty.avg)), h('td', {}, x.ty.n || '–'), ...(hasLy ? [h('td', {}, x.ly.n ? cell(x.ly.avg) : (x.ty.n ? 'new' : '–')), h('td', {}, x.yoy == null ? '–' : delta(x.yoy))] : [])));
+        const nt = c.net.ty, nl = c.net.ly;
+        const foot = h('tr', { style: 'font-weight:700' }, h('td', { class: 'l' }, 'All stores (network sales ÷ days)'), h('td', {}, cell(nt.avg)), h('td', {}, nt.n || '–'), ...(hasLy ? [h('td', {}, nl.n ? cell(nl.avg) : '–'), h('td', {}, nt.avg && nl.avg ? delta(nt.avg / nl.avg - 1) : '–')] : []));
+        const ly = c.k.hasLy ? `${c.stores.length ? '' : ''}Last year covers the same dates (one year earlier).` : '';
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Average daily sales by store (SAR)'),
+          h('div', { style: 'max-height:380px;overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Store', 'This year', 'Trading days', ...(hasLy ? ['Last year', 'Change %'] : [])].map((t, i) => h('th', { class: i ? '' : 'l' }, t)))), h('tbody', {}, body, foot))),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, `Net sales ÷ trading days. A trading day is a day with sales above zero, so closed days and days before an opening are not counted. ${ly}`));
+      }
+      function weekdayStoreCard(c) {
+        const W = c.WEEK; const key = wdView; const hasLy = c.k.hasLy; const rows = [{ name: 'All stores', p: c.net[key], net: true }, ...c.stores.map((x) => ({ name: x.name, p: x[key] }))].filter((r) => r.p.n);
+        const tone = (v, lo, hi) => (v == null || hi === lo ? '' : v === hi ? 'background:var(--ok-bg,#e6f4ea)' : v === lo ? 'background:var(--bad-bg,#fdecea)' : '');
+        const body = rows.map((r) => { const vals = W.map((w) => r.p.dow[w].avg).filter((v) => v != null); const lo = Math.min(...vals), hi = Math.max(...vals); return h('tr', { style: r.net ? 'font-weight:700' : '' }, h('td', { class: 'l' }, r.name), ...W.map((w) => h('td', { style: tone(r.p.dow[w].avg, lo, hi), title: `${r.p.dow[w].n} ${w}day(s)` }, r.p.dow[w].avg == null ? '–' : num(r.p.dow[w].avg))), h('td', {}, num(r.p.avg))); });
+        const btn = (k, l) => h('button', { class: 'btn small' + (wdView === k ? ' primary' : ''), onclick: () => { wdView = k; draw(); } }, l);
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, `Average daily sales by weekday and store (SAR) · ${key === 'ty' ? 'this year' : 'last year'}`), h('div', { class: 'spacer' }), btn('ty', 'This year'), hasLy ? btn('ly', 'Last year') : null),
+          h('div', { style: 'overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Store', ...W, 'All days'].map((t, i) => h('th', { class: i ? '' : 'l' }, t)))), h('tbody', {}, body))),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, 'Each cell = total sales on that weekday ÷ number of that weekday the store traded (hover for the count). Green = best weekday, red = weakest, per store. Zero-sales days are not counted.'));
+      }
       function compareCard(c) {
         const k = c.k; const nd = k.matchedDays || 1; const partial = k.matchedDays < k.totalDays;
         const rows = [['Net sales (SAR)', k.sales, k.lySales, num], ['Transactions', k.bills, k.lyBills, num], ['Average check (SAR)', k.avg, k.lyAvg, num2], ['Branches trading', k.branches, k.lyBranches, num], ['Average sales per branch (SAR)', k.branches ? k.sales / k.branches : null, k.lyBranches ? k.lySales / k.lyBranches : null, num], ['Average daily sales (SAR)', c.days.length ? k.sales / c.days.length : null, c.lyDays.length ? k.lySales / c.lyDays.length : null, num], ['Average daily transactions', c.days.length ? k.bills / c.days.length : null, c.lyDays.length ? k.lyBills / c.lyDays.length : null, num]];

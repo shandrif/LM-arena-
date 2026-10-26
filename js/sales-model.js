@@ -173,7 +173,7 @@
     const B = {}; // key -> {name, sales, bills, lySales, lyBills, days:{}}
     const get = (store) => {
       const k = branchKey(store);
-      if (!B[k]) B[k] = { key: k, name: store, sales: 0, bills: 0, lySales: 0, lyBills: 0, days: {} };
+      if (!B[k]) B[k] = { key: k, name: store, sales: 0, bills: 0, lySales: 0, lyBills: 0, days: {}, lyDayMap: {} };
       return B[k];
     };
     const D = {};
@@ -183,7 +183,7 @@
     });
     const LD = {};
     ds.ly.forEach((r) => {
-      const b = get(r.store); b.lySales += r.sales; b.lyBills += r.bills || 0;
+      const b = get(r.store); b.lySales += r.sales; b.lyBills += r.bills || 0; b.lyDayMap[r.day] = (b.lyDayMap[r.day] || 0) + r.sales;
       const d = (LD[r.day] = LD[r.day] || { day: r.day, sales: 0, bills: 0 }); d.sales += r.sales; d.bills += r.bills || 0;
     });
     const branches = Object.values(B);
@@ -250,8 +250,18 @@
     // weekday profile, this year vs the matching last-year dates
     const W = DOW.map((n) => ({ name: n, n: 0, sales: 0, bills: 0, lySales: 0, lyBills: 0 })); matched.forEach((d) => { const w = W[dayOfWeek(d.day)]; if (!w) return; w.n++; w.sales += d.sales; w.bills += d.bills; w.lySales += d.ly.sales; w.lyBills += d.ly.bills; });
     const dow = W.filter((w) => w.n).map((w) => ({ ...w, avg: w.bills ? w.sales / w.bills : null, lyAvg: w.lyBills ? w.lySales / w.lyBills : null, yoy: w.lySales ? w.sales / w.lySales - 1 : null }));
-    return { k, branches, days, lyDays, dow, groups: groups.arr, items: itemsR.arr, itemsTotal: itemsR.total };
+    // average daily sales per store and per weekday (Sat first). A trading day = a day with net sales above 0 for that store.
+    // Last year uses only the dates that line up with this year's period, so both sides cover the same window.
+    const WEEK = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']; const first = days.length ? days[0].day : null, last = days.length ? days[days.length - 1].day : null;
+    const lyFrom = first ? addYears(first, -1) : null, lyTo = last ? addYears(last, -1) : null;
+    const prof = (map, from, to) => { const o = { n: 0, sales: 0, dow: {} }; WEEK.forEach((w) => (o.dow[w] = { n: 0, sales: 0 }));
+      Object.entries(map).forEach(([day, v]) => { if (!(v > 0) || (from && day < from) || (to && day > to)) return; o.n++; o.sales += v; const w = o.dow[DOW[dayOfWeek(day)]]; w.n++; w.sales += v; });
+      o.avg = o.n ? o.sales / o.n : null; WEEK.forEach((w) => (o.dow[w].avg = o.dow[w].n ? o.dow[w].sales / o.dow[w].n : null)); return o; };
+    const stores = branches.filter((b) => b.sales > 0 || b.lySales > 0).map((b) => { const ty = prof(b.days, null, null), ly = prof(b.lyDayMap, lyFrom, lyTo); return { key: b.key, name: b.name, ty, ly, yoy: ty.avg && ly.avg ? ty.avg / ly.avg - 1 : null, rawSales: b.sales, nonPositive: Object.values(b.days).filter((v) => !(v > 0)).length }; }).sort((a, b) => (b.ty.avg || 0) - (a.ty.avg || 0));
+    const netD = {}; ds.ty.forEach((r) => { netD[r.day] = 1; }); const lyNet = {}; ds.ly.forEach((r) => { if ((!lyFrom || r.day >= lyFrom) && (!lyTo || r.day <= lyTo)) lyNet[r.day] = (lyNet[r.day] || 0) + r.sales; });
+    const net = { ty: prof(Object.fromEntries(days.map((d) => [d.day, d.sales])), null, null), ly: prof(lyNet, lyFrom, lyTo) };
+    return { k, branches, days, lyDays, dow, stores, net, WEEK, groups: groups.arr, items: itemsR.arr, itemsTotal: itemsR.total };
   }
 
-  LM.sales = { spec, defaultTemplate, build, checks, compute, readSummaryTiles, branchKey, addYears, DOW };
+  LM.sales = { WEEK: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'], spec, defaultTemplate, build, checks, compute, readSummaryTiles, branchKey, addYears, DOW };
 })(typeof window !== 'undefined' ? window : globalThis);
