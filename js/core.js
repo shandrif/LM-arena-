@@ -29,7 +29,7 @@
   const shortName = (s) => String(s).replace(/^B\d+\s*[-,،]?\s*/, (m) => m.trim().replace(/[-,،]$/, '') + ' ');
 
   function toast(msg) {
-    const t = h('div', { class: 'toast' }, msg); document.body.append(t); setTimeout(() => t.remove(), 3500);
+    const t = h('div', { class: 'toast' }, msg); document.body.append(t); setTimeout(() => t.classList.add('out'), 3300); setTimeout(() => t.remove(), 3550);
   }
 
   /* ---------- IndexedDB ---------- */
@@ -221,7 +221,10 @@
   };
   LM.chart = (canvasHost, cfg) => {
     const c = h('canvas'); canvasHost.append(c);
-    Chart.defaults.font.family = 'system-ui, sans-serif'; Chart.defaults.color = css('--muted');
+    Chart.defaults.font.family = getComputedStyle(document.body).fontFamily; Chart.defaults.color = css('--muted'); Chart.defaults.borderColor = css('--line');
+    Chart.defaults.animation.duration = 380; Chart.defaults.animation.easing = 'easeOutQuart';
+    const tt = Chart.defaults.plugins.tooltip; tt.backgroundColor = css('--ink'); tt.titleColor = css('--bg'); tt.bodyColor = css('--bg'); tt.cornerRadius = 10; tt.padding = 10; tt.boxPadding = 4;
+    const lg = Chart.defaults.plugins.legend.labels; lg.usePointStyle = true; lg.boxWidth = 8; lg.boxHeight = 8;
     cfg.options = Object.assign({ responsive: true, maintainAspectRatio: false }, cfg.options);
     cfg.plugins = [...(cfg.plugins || []), valueLabels];
     const ty = cfg.type || 'bar'; const horiz = cfg.options.indexAxis === 'y'; const many = (cfg.data.labels || []).length > 16;
@@ -232,7 +235,7 @@
     const ch = new Chart(c, cfg); live.add(ch); return ch;
   };
   LM.killCharts = () => { live.forEach((c) => c.destroy()); live.clear(); };
-  LM.palette = () => ['#7a4a2b', '#2c7a7b', '#c2851f', '#5b6fb5', '#a8456b', '#6b8e3d', '#8a8a8a', '#c25b3a'].map((c, i) => c);
+  LM.palette = () => ['#2b8a74', '#b8956a', '#c2564a', '#84c6b2', '#6b7f8e', '#d4b38b', '#8a7f70', '#1d1b17'].map((c, i) => c);
 
   /* ---------- drag & drop on an element ---------- */
   LM.dropZone = (el, onFile, multi = false) => {

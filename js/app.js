@@ -21,7 +21,8 @@
   async function show(id) {
     active = id; location.hash = id; LM.killCharts();
     tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
-    panel.replaceChildren(); await depts.find((d) => d.id === id).mount(panel);
+    panel.classList.remove('enter'); panel.replaceChildren(); void panel.offsetWidth; panel.classList.add('enter'); clearTimeout(show.t); show.t = setTimeout(() => panel.classList.remove('enter'), 700); // short rise on tab change only
+    await depts.find((d) => d.id === id).mount(panel);
   }
   depts.forEach((d) => tabs.append(h('button', { 'data-id': d.id, class: GROUP_END.includes(d.id) ? 'grp' : '', onclick: () => show(d.id) }, d.label)));
 
@@ -69,7 +70,7 @@
   }
   const m = LM.snapshot.meta || {};
   document.body.prepend(h('header', { class: 'top' },
-    h('div', { class: 'bar' }, h('span', { class: 'brand' }, '☕ Weekly Department Dashboard'), snap || !LM.week || !LM.week.ready ? null : LM.week.control(), h('div', { class: 'spacer' }),
+    h('div', { class: 'bar' }, h('span', { class: 'brand' }, 'Weekly Department Dashboard'), snap || !LM.week || !LM.week.ready ? null : LM.week.control(), h('div', { class: 'spacer' }),
       LM.cloud && !snap ? h('button', { class: 'btn small', onclick: () => LM.cloud.signOut(), title: 'Sign out of this website' }, 'Sign out') : null,
       snap ? null : view ? [...(window.LM_NO_DOWNLOADS ? [] : [h('button', { class: 'btn small', onclick: saveCopy, title: 'Save the whole dashboard with its data as one HTML file' }, '⬇ Download as HTML')])] : [...(window.LM_NO_DOWNLOADS ? [] : [h('button', { class: 'btn small', onclick: saveCopy, title: 'Save the whole dashboard with its data as one HTML file (read-only copy)' }, '⬇ Download as HTML')]), h('button', { class: 'btn small danger', onclick: clearDialog, title: 'Remove the reports of the week you are in (other weeks stay saved)' }, 'Clear this week'),
         ...(window.LM_NO_DOWNLOADS ? [] : [h('button', { class: 'btn small', onclick: backup, title: 'Download all stored data as one file (to restore later)' }, 'Backup'), h('button', { class: 'btn small', onclick: () => rin.click() }, 'Restore'), rin])]),
