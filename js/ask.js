@@ -210,8 +210,10 @@ Reports shown in every week (year calendar, yearly quality trend) are reference 
   }
   function welcome() {
     list.replaceChildren(); history = [];
-    list.append(h('div', { class: 'ask-hello' }, h('b', {}, 'Ask me anything about this week’s reports.'),
-      h('p', {}, `I read the reports saved under ${weekName()} and calculate every figure exactly. I can also explain what you see on the screen. To ask about another week, pick it in the Week box first.`)), chips());
+    const art = LM.pudding || {};
+    list.append(h('div', { class: 'ask-hello' }, art.hello ? h('img', { class: 'ask-pic', src: art.hello, alt: 'Pudding the robot' }) : null,
+      h('div', { class: 'ask-bubble' }, h('b', {}, 'Hi, my name is Pudding.'), h('div', {}, 'Have any questions for this report?'),
+        h('p', {}, `I read the reports saved under ${weekName()} and work out every figure exactly. I can also explain what you see on screen. To ask about another week, pick it in the Week box first.`))), chips());
     headline.textContent = weekName();
   }
   async function submit(q) {
@@ -238,13 +240,18 @@ Reports shown in every week (year calendar, yearly quality trend) are reference 
   }
   function build() {
     if (document.querySelector('.ask-fab')) return;
-    fab = h('button', { class: 'ask-fab', title: 'Ask the dashboard', onclick: () => toggle() }, h('span', { class: 'ask-spark' }, '✦'), h('span', {}, 'Ask'));
+    const art = LM.pudding || {}; const pic = h('img', { class: 'pud', alt: '', draggable: 'false' });
+    const tip = h('span', { class: 'ask-tip' }, 'Ask Pudding');
+    fab = h('button', { class: 'ask-fab', title: 'Ask Pudding', 'aria-label': 'Ask Pudding about this report', onclick: () => toggle() }, pic, tip);
+    const still = () => { pic.src = art.idle || ''; fab.classList.add('floating'); };
+    if (art.wave && !matchMedia('(prefers-reduced-motion: reduce)').matches) { pic.src = art.wave; fab.classList.add('waving'); setTimeout(() => { fab.classList.remove('waving'); still(); }, 3600); setTimeout(() => tip.classList.add('gone'), 9000); }
+    else { still(); setTimeout(() => tip.classList.add('gone'), 6000); }
     headline = h('span', { class: 'ask-week' });
     list = h('div', { class: 'ask-list', 'aria-live': 'polite' });
     input = h('textarea', { rows: 1, placeholder: 'Ask about sales, stores, a screen…', onkeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } if (e.key === 'Escape') toggle(false); }, oninput: autosize });
     sendBtn = h('button', { class: 'ask-send', title: 'Send', onclick: () => submit() }, '➤');
-    panel = h('section', { class: 'ask-panel', role: 'dialog', 'aria-label': 'Ask the dashboard' },
-      h('div', { class: 'ask-head' }, h('div', {}, h('b', {}, 'Ask the dashboard'), h('div', { class: 'ask-sub' }, 'Answers from ', headline)), h('div', { class: 'spacer' }),
+    panel = h('section', { class: 'ask-panel', role: 'dialog', 'aria-label': 'Pudding, the dashboard assistant' },
+      h('div', { class: 'ask-head' }, h('div', {}, h('b', {}, 'Pudding'), h('div', { class: 'ask-sub' }, 'Answers from ', headline)), h('div', { class: 'spacer' }),
         h('button', { class: 'btn small', onclick: () => { if (!busy) welcome(); }, title: 'Start a new conversation' }, 'New chat'), h('button', { class: 'ask-x', onclick: () => toggle(false), title: 'Close' }, '×')),
       list, h('div', { class: 'ask-foot' }, input, sendBtn), h('div', { class: 'ask-note' }, 'AI can misread a question. Open “How I got this” under an answer to see the exact lookups.'));
     document.body.append(panel, fab);
