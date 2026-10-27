@@ -131,6 +131,7 @@ RULES
 - For every figure call a tool (query_table for sums, averages, rankings; search to find exact spellings; get_value for text). Never calculate by hand and never guess. If something is not in the reports, say so plainly and name what is there.
 - Store and item names may be bilingual (English / Arabic). Use search first when a name is uncertain, then filter with the exact spelling. If a name could mean several stores, list them and ask.
 - Dates are YYYY-MM-DD in the data. Amounts are SAR unless the report says otherwise. State the period and the report file you used. Give the number first, then one short line of context.
+- Never add amounts in different currencies together; show each currency separately. If a period is not specified, use the whole report period and say so.
 - Reply in the language the user wrote in. Keep answers short; use a small table for several rows. Do not mention tools or ids to the user.
 - To explain a part of the dashboard, call screen_text, then explain in plain words what it shows, where each number comes from, and what it means for the business. If the screen text does not say how a number is computed, say you are not certain instead of inventing a formula.
 THE TABS (each holds the reports uploaded that week)
@@ -144,7 +145,7 @@ Reports shown in every week (year calendar, yearly quality trend) are reference 
     const r = await fetch('/api/ask', { method: 'POST', headers: { 'content-type': 'application/json', 'x-lm-request': '1' }, credentials: 'same-origin', body: JSON.stringify({ system: GUIDE, tools: DECL, contents }) });
     let j = {}; try { j = await r.json(); } catch (e) {}
     if (r.status === 401) { location.reload(); throw new Error('Signed out'); }
-    if (!r.ok) { const e = new Error(j.error || 'The assistant is not available right now.'); e.code = j.code; throw e; }
+    if (!r.ok) { const e = new Error(j.error || 'The assistant is not available right now.'); e.code = j.code; if (j.detail) console.warn('assistant:', j.detail); throw e; }
     return j;
   }
   const FRIENDLY = { list_reports: 'Looking at the saved reports', describe_table: 'Checking a table', query_table: 'Calculating from the table', get_value: 'Reading the report', search: 'Searching the reports', screen_text: 'Reading this screen' };

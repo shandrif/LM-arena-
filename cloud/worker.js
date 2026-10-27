@@ -96,16 +96,26 @@ async function ask(req, env) {
   const used = await env.DB.prepare('SELECT n FROM ask_usage WHERE day=?').bind(day).first();
   if (used && used.n >= (+env.ASK_DAILY || ASK_DAILY)) return err(429, 'The daily question limit has been reached. Try again tomorrow.');
   await env.DB.prepare('INSERT INTO ask_usage(day,n) VALUES(?,1) ON CONFLICT(day) DO UPDATE SET n=n+1').bind(day).run();
-  const model = (env.GEMINI_MODEL || 'gemini-flash-latest').replace(/[^\w.\-]/g, '');
+  const first = (env.GEMINI_MODEL || 'gemini-flash-latest').replace(/[^\w.\-]/g, '');
+  const base = env.GEMINI_BASE || 'https://generativelanguage.googleapis.com';
   const body = { systemInstruction: { parts: [{ text: String(b.system || '').slice(0, 12000) }] }, contents: b.contents,
     tools: [{ functionDeclarations: Array.isArray(b.tools) ? b.tools.slice(0, 12) : [] }], toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-    generationConfig: { temperature: 0, maxOutputTokens: 4096 } };
-  const base = env.GEMINI_BASE || 'https://generativelanguage.googleapis.com';
-  let r; try { r = await fetch(`${base}/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY }, body: JSON.stringify(body) }); }
-  catch (e) { return err(502, 'Could not reach Gemini. Please try again.'); }
-  const txt = await r.text(); let j; try { j = JSON.parse(txt); } catch (e) { return err(502, 'Gemini sent an unreadable reply.'); }
-  if (!r.ok) { const msg = (j.error && j.error.message) || ''; return err(r.status === 429 ? 429 : 502, r.status === 429 ? 'Gemini is busy or its limit is reached. Wait a minute and try again.' : /API key/i.test(msg) ? 'The Gemini key was rejected. Ask the owner to check it.' : 'Gemini could not answer (' + r.status + ').'); }
-  return json({ candidates: j.candidates, promptFeedback: j.promptFeedback });
+    generationConfig: { temperature: 0, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 1024 } } };
+  /* Gemini sometimes answers "overloaded" (503): try again, then the next model, before giving up */
+  const tries = [first, 'gemini-flash-lite-latest', first, 'gemini-flash-lite-latest']; // a busy or over-quota model hands over to the next one at once
+  let r, j, last = ''; const t0 = Date.now(); const log = [];
+  for (let i = 0; i < tries.length; i++) {
+    if (i > 1) await new Promise((ok) => setTimeout(ok, 1200));
+    try { r = await fetch(`${base}/v1beta/models/${tries[i]}:generateContent`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY }, body: JSON.stringify(body), signal: AbortSignal.timeout(25000) }); }
+    catch (e) { last = 'no connection / timeout'; r = null; continue; }
+    const txt = await r.text(); log.push(`${tries[i]}:${r.status}:${Date.now() - t0}ms`); try { j = JSON.parse(txt); } catch (e) { j = {}; last = 'unreadable reply'; r = null; continue; }
+    if (!r.ok) log.push(((j.error && j.error.message) || '').slice(0, 220).replace(/[^\x20-\x7e]/g, ' ')); if (r.ok) break; last = `${r.status} ${(j.error && j.error.message) || ''}`.slice(0, 200);
+    if (r.status === 400 && /think/i.test(last) && body.generationConfig.thinkingConfig) { delete body.generationConfig.thinkingConfig; i--; continue; } // this model does not take a thinking budget
+    if (![429, 500, 503, 504].includes(r.status)) break;
+  }
+  if (!r) return json({ error: 'Could not reach Gemini. Please try again.', detail: last }, 502);
+  if (!r.ok) { const msg = (j.error && j.error.message) || ''; return json({ error: r.status === 429 ? 'Gemini is busy or its limit is reached. Wait a minute and try again.' : r.status === 503 ? 'Gemini is overloaded right now. Please try again in a moment.' : /API key/i.test(msg) ? 'The Gemini key was rejected. Ask the owner to check it.' : 'Gemini could not answer (' + r.status + ').', detail: last }, r.status === 429 ? 429 : 502); }
+  return json({ candidates: j.candidates, promptFeedback: j.promptFeedback }, 200, { 'x-ask-log': log.join(' ') });
 }
 
 async function api(req, env, url) {
