@@ -106,8 +106,8 @@ async function ask(req, env) {
   let r, j, last = ''; const t0 = Date.now(); const log = [];
   for (let i = 0; i < tries.length; i++) {
     if (i > 1) await new Promise((ok) => setTimeout(ok, 1200));
-    try { r = await fetch(`${base}/v1beta/models/${tries[i]}:generateContent`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY }, body: JSON.stringify(body), signal: AbortSignal.timeout(14000) }); }
-    catch (e) { last = 'no connection / timeout'; r = null; continue; }
+    try { r = await fetch(`${base}/v1beta/models/${tries[i]}:generateContent`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY }, body: JSON.stringify(body), signal: AbortSignal.timeout(40000) }); }
+    catch (e) { last = 'no connection / timeout (' + tries[i] + ': ' + String(e && e.name) + ')'; r = null; continue; }
     const txt = await r.text(); log.push(`${tries[i]}:${r.status}:${Date.now() - t0}ms`); try { j = JSON.parse(txt); } catch (e) { j = {}; last = 'unreadable reply'; r = null; continue; }
     if (!r.ok) log.push(((j.error && j.error.message) || '').slice(0, 220).replace(/[^\x20-\x7e]/g, ' ')); if (r.ok) break; last = `${r.status} ${(j.error && j.error.message) || ''}`.slice(0, 200);
     if (r.status === 400 && /think/i.test(last) && body.generationConfig.thinkingConfig) { delete body.generationConfig.thinkingConfig; i--; continue; } // this model does not take a thinking budget
