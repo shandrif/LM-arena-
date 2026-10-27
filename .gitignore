@@ -9,3 +9,4 @@ dist/
 *.pdf
 *.json
 !package.json
+.wrangler/

@@ -5,24 +5,27 @@ There is no Overview sub-tab; each tab opens on its first working sub-tab. Every
 Each tab has its own **Upload**; every file is **checked before anything is saved** (new/renamed columns, bad values,
 duplicates, re-sent files, overlapping periods…) and nothing is stored until you approve the review.
 
-No server, no build step, no accounts: the data you upload stays **in your browser** (IndexedDB) and is never sent anywhere.
+Three ways to run it, all with the same screens: **its own website** (Cloudflare Worker + D1 database, see `docs/DEPLOY.md`), **a claude.ai artifact** (shared artifact database), or **a plain file / local server** (data stays in that browser's IndexedDB). Without a back-end nothing is sent anywhere.
+
+## Weeks
+Every upload belongs to a week (Sunday–Saturday, named by its Saturday). The **Week** box in the header chooses the week you look at and upload into; **＋ New week** starts the next one. Earlier weeks stay saved. A tab with no file for the chosen week shows the latest earlier upload with a yellow note saying so.
 
 ## Weekly routine
-1. Open the dashboard. Click **⬇ Download as HTML** to keep a copy of last week (a single read-only `.html` file
-   with all the data; it opens by double-click, works offline and never touches the live data).
-2. Click **Clear dashboard** (offers to save the copy first) so the new week starts empty.
-3. Upload the new week's files in each tab (the Roasting and International tabs accept several files at once).
-
-Not clearing is fine too: reports of different periods are kept side by side with a period selector; the same period replaces the older upload (the old one is kept in history).
+1. On Sunday click **＋ New week** (last week stays saved; pick it any time in the Week box).
+2. Upload the new week's files in each tab (the Roasting and International tabs accept several files at once).
+3. Optional: **⬇ Download as HTML** keeps a read-only copy of the chosen week (one `.html` file with the data; opens by double-click, works offline).
 
 | Button | What it does |
 |---|---|
-| ⬇ Download as HTML | Saves the app + all current data as one read-only HTML file (a weekly archive you can email or open anywhere). |
-| Clear dashboard | Removes all uploaded data and history from this browser. Learned file formats are kept so the same files upload without questions. |
-| Backup / Restore | JSON file with the data, to move it to another computer or put it back into the live dashboard. (HTML copies are for viewing; Backup is for restoring.) |
+| ＋ New week | Starts the next Sunday–Saturday week. Nothing is deleted. |
+| ⬇ Download as HTML | Saves the app + the chosen week's data (and earlier ones) as one read-only HTML file. |
+| Clear this week | Removes only the chosen week's reports. Other weeks, learned file formats, notes and meetings are kept. |
+| Backup / Restore | Backup saves every week in one JSON file. Restore adds to what is there (it never wipes other weeks). |
 
 ## Publishing it as a website
-The repo is plain static files, so any static host works.
+**With sign-in and a shared database (recommended): see `docs/DEPLOY.md`.** (Cloudflare Worker `cloud/worker.js`, D1 database, Cloudflare Access for login, your own domain.)
+
+Static-only options (data stays in each visitor's browser): the repo is plain static files, so any static host works.
 
 * **GitHub Pages:** Settings → Pages → *Deploy from a branch* → pick the branch (e.g. `main`) and `/ (root)`.
 * **Netlify / Cloudflare Pages / any web server:** publish the repo root; no build command.
@@ -35,4 +38,5 @@ The repo is plain static files, so any static host works.
 ## Code map
 `js/engine.js` generic file-check engine · `js/core.js` helpers, storage, review dialog · `js/snapshot.js` HTML copy / clear ·
 `js/<dept>-model.js` parsing + checks (no DOM) · `js/<dept>-ui.js` screens · `js/generic-ui.js` flexible tab (used for Real estate) · `js/richtext.js` note editor · `js/blocks.js` hide/show blocks ·
+`js/codec.js` + `js/shared-db.js` (claude.ai) + `js/cloud-db.js` (website) storage back-ends · `js/weeks.js` week logic · `cloud/` Worker + database schema ·
 `js/app.js` tabs + header. Libraries are vendored in `vendor/`.

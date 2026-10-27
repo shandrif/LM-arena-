@@ -147,3 +147,8 @@ nav.tabs button.grp::after { content: ''; position: absolute; right: -8px; top: 
 .blk-bar .blk-label { font-size: 13px; color: var(--muted); font-weight: 600; }
 .blk-hidden { display: none !important; }
 .blk-all { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 6px 12px; border: 1px dashed var(--line); border-radius: 10px; font-size: 13px; color: var(--muted); }
+
+/* ---- week box in the header ---- */
+.wkctl { display: flex; align-items: center; gap: 6px; margin-left: 14px; }
+.wkctl select { max-width: 280px; }
+@media (max-width: 720px) { .wkctl { margin-left: 0; width: 100%; order: 5; } }

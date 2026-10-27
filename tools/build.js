@@ -10,6 +10,7 @@ html = html.replace(/<script src="([^"]+)"><\/script>/g, (_, f) => `<script data
 const libs = `<script type="text/plain" id="lm-lib-pdf">${safe(rd('vendor/pdf.min.js'))}</script>\n<script type="text/plain" id="lm-lib-pdfworker">${safe(rd('vendor/pdf.worker.min.js'))}</script>\n`;
 const at = html.lastIndexOf('</body>'); html = html.slice(0, at) + libs + html.slice(at); // lastIndexOf: the inlined scripts contain the text </body> too
 fs.mkdirSync(path.join(root, 'dist'), { recursive: true }); fs.writeFileSync(path.join(root, 'dist/dashboard.html'), html);
+fs.mkdirSync(path.join(root, 'dist/site'), { recursive: true }); fs.writeFileSync(path.join(root, 'dist/site/index.html'), html); // the standalone website (see wrangler.jsonc)
 console.log('dist/dashboard.html', (html.length / 1e6).toFixed(1) + ' MB');
 
 // Artifact variant (claude.ai artifact: page content only, downloads are blocked there so those buttons are hidden)
