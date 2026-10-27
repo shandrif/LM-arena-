@@ -2,6 +2,7 @@
   // Weekly Department Dashboard as its own website (Cloudflare Worker + static page + D1 database)
   "name": "wtracker",
   "main": "cloud/worker.js",
+  "workers_dev": true,
   "routes": [
     { "pattern": "hmreport.com", "custom_domain": true },
     { "pattern": "www.hmreport.com", "custom_domain": true }
