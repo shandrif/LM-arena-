@@ -84,7 +84,7 @@ async function load(env, week) {
 }
 
 /* ---------- assistant: forwards a chat step to Gemini. The key (secret GEMINI_API_KEY) never leaves the Worker. ---------- */
-const ASK_DAILY = 800;       // Gemini calls per day for the whole team (one question is usually 2-4 calls)
+const ASK_DAILY = 1500;      // Gemini calls per day for the whole team (one question is usually 2-4 calls)
 const ASK_MAX_BODY = 600_000;
 async function ask(req, env) {
   if (!env.GEMINI_API_KEY) return json({ error: 'The Gemini key has not been added yet.', code: 'no-key' }, 503);
@@ -99,7 +99,7 @@ async function ask(req, env) {
   const first = (env.GEMINI_MODEL || 'gemini-flash-latest').replace(/[^\w.\-]/g, '');
   const base = env.GEMINI_BASE || 'https://generativelanguage.googleapis.com';
   const body = { systemInstruction: { parts: [{ text: String(b.system || '').slice(0, 12000) }] }, contents: b.contents,
-    tools: [{ functionDeclarations: Array.isArray(b.tools) ? b.tools.slice(0, 12) : [] }], toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+    tools: [{ functionDeclarations: Array.isArray(b.tools) ? b.tools.slice(0, 12) : [] }], toolConfig: { functionCallingConfig: { mode: b.noTools ? 'NONE' : 'AUTO' } },
     generationConfig: { temperature: 0, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 1024 } } };
   /* Gemini sometimes answers "overloaded" (503): try again, then the next model, before giving up */
   const tries = [first, 'gemini-flash-lite-latest', first, 'gemini-flash-lite-latest']; // a busy or over-quota model hands over to the next one at once

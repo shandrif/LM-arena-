@@ -128,6 +128,7 @@
 
   const GUIDE = `You are the built-in assistant of Half Million Coffee's Weekly Department Dashboard. Answer only from the saved reports of the week that is open.
 RULES
+- The list of saved reports and their tables is given below, so you do not need list_reports. Ask for several lookups in one step when they are independent. Prefer one query_table with group_by over many separate queries.
 - For every figure call a tool (query_table for sums, averages, rankings; search to find exact spellings; get_value for text). Never calculate by hand and never guess. If something is not in the reports, say so plainly and name what is there.
 - Store and item names may be bilingual (English / Arabic). Use search first when a name is uncertain, then filter with the exact spelling. If a name could mean several stores, list them and ask.
 - Dates are YYYY-MM-DD in the data. Amounts are SAR unless the report says otherwise. State the period and the report file you used. Give the number first, then one short line of context.
@@ -139,10 +140,15 @@ Sales: daily net sales and bills per store (this year "ty", last year "ly") and 
 Manual punch: manual-punch value vs total sales per store and period. Wastage: waste lines by store, item and value. International: London and Iraq weekly reviews, events, Saudi NSO, expansion, events calendar. Training: weekly training slides. Quality: store visit scores, COO weekly update, trend over the year. Procurement: pending purchase requisitions (PR) and orders (PO) as of a date. Warehouse: scorecard, stock value, dead stock, capacity, productivity, logistics cost, OTIF, inventory. Shipment: inbound shipments with ETD / ETA and status. Bakery: factory plan, production plan vs actual, machines, risks, food safety. Roasting: weekly production batches and stock on hand. NEP: network expansion plan, new store openings (NSO) tracker, closures. Real estate: lease register per branch (no landlord contacts stored). Discussion: the team's notes.
 Reports shown in every week (year calendar, yearly quality trend) are reference files.`;
 
+  /* a short map of the open week, sent with every step so Gemini does not spend steps discovering it */
+  function indexText() {
+    const L = TOOLS.list_reports(); return 'REPORTS SAVED IN THE OPEN WEEK (' + (L.week || '') + '): report id | tab | kind | file | period | tables as name(rows: columns)\n' + L.reports.map((r) => [r.report, r.tab, r.kind || '-', r.file, (r.from || '') + '..' + (r.to || ''), r.tables.map((t) => `${t.table}(${t.rows}: ${t.columns.slice(0, 14).join(',')})`).join('; ')].join(' | ')).join('\n').slice(0, 24000);
+  }
+
   /* ---------- the conversation ---------- */
   let history = []; // Gemini "contents"
-  async function callGemini(contents) {
-    const r = await fetch('/api/ask', { method: 'POST', headers: { 'content-type': 'application/json', 'x-lm-request': '1' }, credentials: 'same-origin', body: JSON.stringify({ system: GUIDE, tools: DECL, contents }) });
+  async function callGemini(contents, last) {
+    const r = await fetch('/api/ask', { method: 'POST', headers: { 'content-type': 'application/json', 'x-lm-request': '1' }, credentials: 'same-origin', body: JSON.stringify({ system: GUIDE + '\n\n' + indexText(), tools: DECL, contents, noTools: !!last }) });
     let j = {}; try { j = await r.json(); } catch (e) {}
     if (r.status === 401) { location.reload(); throw new Error('Signed out'); }
     if (!r.ok) { const e = new Error(j.error || 'The assistant is not available right now.'); e.code = j.code; if (j.detail) console.warn('assistant:', j.detail); throw e; }
@@ -154,8 +160,10 @@ Reports shown in every week (year calendar, yearly quality trend) are reference 
     await load(); const used = []; const turn = history.length;
     history.push({ role: 'user', parts: [{ text: question }] });
     try {
-      for (let step = 0; step < 8; step++) {
-        const res = await callGemini(history);
+      const MAX = 14;
+      for (let step = 0; step < MAX; step++) {
+        if (step === MAX - 1) history.push({ role: 'user', parts: [{ text: 'Stop looking things up. Give the best answer you can now from what you have found, say clearly what is still missing, and suggest how I can ask for the rest.' }] }); // never end on an error
+        const res = await callGemini(history, step === MAX - 1);
         const c = res.candidates && res.candidates[0]; const content = c && c.content;
         if (!content || !content.parts || !content.parts.length) { const why = (c && c.finishReason) || (res.promptFeedback && res.promptFeedback.blockReason) || 'empty'; throw new Error('No answer came back (' + why + '). Please rephrase the question.'); }
         history.push(content);
@@ -169,7 +177,7 @@ Reports shown in every week (year calendar, yearly quality trend) are reference 
         }
         history.push({ role: 'user', parts: back });
       }
-      throw new Error('That question needed too many steps. Try asking it in smaller parts.');
+      throw new Error('That question needed too many steps. Try asking it in smaller parts.'); // only reached if Gemini still asks for lookups on the last turn
     } catch (e) { history.length = turn; throw e; }
   }
 
