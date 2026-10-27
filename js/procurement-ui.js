@@ -46,7 +46,7 @@
       /* ---------- supplier meetings (free text, kept across weeks; 'templates' store so Clear dashboard keeps it) ---------- */
       const MK = 'procurement-meetings'; let meet = []; const roMeet = () => !!(LM.viewOnly || (LM.snapshot && LM.snapshot.active));
       const SEED = [{ supplier: 'Perfect Chef', topic: 'Discussed chocolate prices for next year and consumption.' }, { supplier: 'CDC', topic: 'Discussed finding alternative brands for Lotus and compound chocolate.' }];
-      const lastWeekEnd = () => { const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - 1); return d.toISOString().slice(0, 10); };
+      const lastWeekEnd = () => { if (LM.week && LM.week.selected) return LM.week.selected; const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7) - 1); return d.toISOString().slice(0, 10); };
       async function loadMeet() { const r = await LM.db.get('templates', MK); if (r) { meet = r.items || []; return; }
         if (roMeet()) { meet = []; return; } meet = SEED.map((x) => ({ id: LM.uid(), week: '2026-10-25', ...x, createdAt: new Date().toISOString() })); await saveMeet(); }
       const saveMeet = () => LM.db.put('templates', { dept: MK, items: meet });

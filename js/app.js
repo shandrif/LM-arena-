@@ -46,7 +46,7 @@
         if (s !== 'templates' && !r.week && target) { const span = r.start && r.end ? (Date.parse(r.end) - Date.parse(r.start)) / 86400000 : 0; r.week = span > 100 ? W.REF : target; }
         await (LM.dbRaw || LM.db).put(s, r);
       }
-      if (W) { await W.rebuild(); if (LM.cloud) await LM.cloud.load(W.selected); }
+      if (W) { const cur = W.list.find((x) => x.week === W.selected); if (target && W.selected !== target && (!cur || cur.n === 0)) W.selected = target; await W.rebuild(); if (LM.cloud) await LM.cloud.load(W.selected); }
     } catch (e) { return LM.say('Restore stopped: ' + e.message); }
     if (W) { const c = document.querySelector('.wkctl'); if (c) c.replaceWith(W.control()); }
     show(active); LM.toast('Backup restored');

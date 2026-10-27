@@ -70,7 +70,7 @@
     // has this exact file (or a file with the same name) been sent before, in ANY tab?
     let dup = null;
     try {
-      const prior = [...(await LM.db.all('datasets')), ...(await LM.db.all('history'))];
+      const dbx = LM.dbRaw || LM.db; const prior = [...(await dbx.all('datasets')), ...(await dbx.all('history'))]; // every week, so a file uploaded last week is recognised
       const same = prior.find((d) => d.hash === hash);
       const sameName = !same && prior.find((d) => d.fileName === file.name);
       if (same) dup = { exact: true, dept: same.dept, name: same.fileName, at: same.uploadedAt };

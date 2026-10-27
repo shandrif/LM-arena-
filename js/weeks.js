@@ -33,29 +33,43 @@
     W.selected = s0 && WEEK_RE.test(s0) && W.list.some((x) => x.week === s0) ? s0 : dataWeeks.length ? dataWeeks[0].week : weekOf(today());
     if (!W.list.some((x) => x.week === W.selected)) W.list.unshift({ week: W.selected, n: 0 });
     if (LM.cloud) await LM.cloud.load(W.selected);
-    const vis = (s, r) => (s === 'templates' ? true : mine(r) <= W.selected);
+    const vis = (s, r) => (s === 'templates' ? true : mine(r) === W.selected || mine(r) === REF); // strict: a week only ever sees its own reports (plus always-available reference files)
     LM.db = {
       all: async (s) => (await base.all(s)).filter((r) => vis(s, r)),
       get: (s, k) => base.get(s, k),
-      put: async (s, v) => { if (s !== 'templates' && !v.week) v.week = W.importing ? recWeek(v) : W.selected; const had = s === 'datasets' ? await base.get(s, v.id) : null; const r = await base.put(s, v); if (s === 'datasets' && !had) bump(v.week, 1); return r; },
+      put: async (s, v) => {
+        if (s !== 'templates' && !v.week) v.week = W.importing ? recWeek(v) : W.selected;
+        if (s === 'datasets' && v.week === W.selected && !W.importing && LM.ask) { const why = datedOutside(v); if (why && !(await LM.ask(why))) throw new Error('Not saved. Use “＋ Add new week” first if this file belongs to a different week.'); }
+        const had = s === 'datasets' ? await base.get(s, v.id) : null; const r = await base.put(s, v); if (s === 'datasets' && !had) bump(v.week, 1); return r; },
       del: async (s, k) => { const old = s === 'datasets' ? await base.get(s, k) : null; const r = await base.del(s, k); if (old) bump(mine(old), -1); return r; },
       // "clear" only ever empties the week you are in: other weeks, saved formats and notes are untouched
       clear: async (s) => { if (s === 'templates') return base.clear(s); for (const r of await base.all(s)) if (mine(r) === W.selected) await base.del(s, r[s === 'templates' ? 'dept' : 'id']); if (s === 'datasets') { const o = W.list.find((x) => x.week === W.selected); if (o) o.n = 0; fillControl(); } },
     };
     W.ready = true;
   });
+  // a report whose own dates point to a different week than the one you are in: ask before saving so two weeks never get mixed by accident
+  function datedOutside(v) {
+    if (!v.end || v.week === REF) return null; const span = v.start ? (ts(v.end) - ts(v.start)) / DAY : 0; if (span > 20) return null; // month-to-date / yearly files cover several weeks on purpose
+    const diff = (ts(v.end) - ts(W.selected)) / DAY;
+    if (diff > 2) return `This file is dated ${v.end}, which is after the week you are in (${label(W.selected)}).\n\nIf it belongs to the next week, press Cancel, click “＋ Add new week” and upload it there. Save it into ${label(W.selected)} anyway?`;
+    if (diff < -13) return `This file is dated ${v.end}, which is more than two weeks before the week you are in (${label(W.selected)}).\n\nIs this an old file? Save it into ${label(W.selected)} anyway?`;
+    return null;
+  }
   function bump(week, d) { let o = W.list.find((x) => x.week === week); if (!o) { o = { week, n: 0 }; W.list.push(o); W.list.sort((a, b) => (a.week < b.week ? 1 : -1)); } o.n = Math.max(0, o.n + d); fillControl(); }
 
   W.select = async (we) => { W.selected = we; persist(we); if (LM.cloud) { try { await LM.cloud.load(we); } catch (e) { if (LM.say) LM.say('Could not load that week: ' + e.message); } } fillControl(); if (LM.refresh) LM.refresh(); };
   W.reload = async () => { if (LM.cloud) { await LM.cloud.load(W.selected); await W.rebuild(); fillControl(); } else await W.rebuild(); };
   W.startNew = async () => {
-    const latest = W.list.length ? W.list[0].week : W.selected; const next = iso(Math.max(ts(latest), ts(W.selected)) + 7 * DAY);
-    if (!LM.ask || await LM.ask(`Start the week ${label(next)}?\n\nThe weeks before it stay saved and can be opened any time from the Week box. Files you upload now go into the new week.`)) { if (!W.list.some((x) => x.week === next)) { W.list.unshift({ week: next, n: 0 }); } await W.select(next); }
+    const top = W.list.length ? W.list[0] : null; const latest = top ? top.week : W.selected;
+    if (top && top.n === 0 && W.selected === top.week) { if (LM.toast) LM.toast(`You are already in the new, empty week ${label(top.week)}. Upload its files in each tab.`); return; } // no stack of empty weeks
+    if (top && top.n === 0) { await W.select(top.week); return; }
+    const next = iso(Math.max(ts(latest), ts(W.selected)) + 7 * DAY);
+    if (!LM.ask || await LM.ask(`Start the new week ${label(next)}?\n\nIt starts completely empty. Every earlier week stays saved exactly as it is and can be opened any time from the Week box. Files you upload now go only into the new week.`)) { if (!W.list.some((x) => x.week === next)) { W.list.unshift({ week: next, n: 0 }); } await W.select(next); }
   };
   function fillControl() { if (!ctl) return; const sel = ctl.querySelector('select'); sel.replaceChildren(...W.list.map((x) => h('option', { value: x.week, selected: x.week === W.selected }, `${label(x.week)}${x.n ? ` · ${x.n} file${x.n > 1 ? 's' : ''}` : ' · empty'}`))); sel.value = W.selected; }
   W.control = () => {
     const sel = h('select', { class: 'sel', title: 'Choose the week to look at / upload into', onchange: (e) => W.select(e.target.value) });
-    ctl = h('div', { class: 'wkctl' }, h('span', { class: 'sub' }, 'Week'), sel, LM.viewOnly ? null : h('button', { class: 'btn small', title: 'Start the next week: earlier weeks stay saved', onclick: () => W.startNew() }, '＋ New week')); fillControl(); return ctl;
+    ctl = h('div', { class: 'wkctl' }, h('span', { class: 'sub' }, 'Week'), sel, LM.viewOnly ? null : h('button', { class: 'btn small primary', title: 'Start the next week (empty). Earlier weeks stay saved and are never changed.', onclick: () => W.startNew() }, '＋ Add new week')); fillControl(); return ctl;
   };
 
   /* ---- one-time: reports saved before weeks existed are put into a week the owner chooses ---- */
@@ -89,10 +103,13 @@
       try {
         const tab = getTab(); let bar = panel.querySelector(':scope > .wk-banner'); let text = '';
         if (tab !== 'discussion') {
-          const recs = (await LM.db.all('datasets')).filter((r) => r.dept === tab); const latest = new Map();
-          recs.forEach((r) => { const k = r.type || ''; const w = recWeek(r); if (!latest.has(k) || w > latest.get(k)) latest.set(k, w); });
-          const old = [...latest].filter(([, w]) => w < W.selected && w !== REF);
-          if (old.length) { const names = old.map(([t]) => (t ? pretty(t) : null)).filter(Boolean); const oldest = old.map(([, w]) => w).sort()[0]; text = `Week ${label(W.selected)}: ${names.length ? 'no new file yet for ' + names.join(', ') : 'no new file for this tab yet'}. Showing the latest earlier upload (week ${label(oldest)}).`; }
+          const recs = (await base.all('datasets')).filter((r) => r.dept === tab); const here = new Set(); const before = new Map();
+          recs.forEach((r) => { const w = recWeek(r); const k = r.type || ''; if (w === W.selected) here.add(k); else if (w !== REF && w < W.selected && (!before.has(k) || w > before.get(k))) before.set(k, w); });
+          const missing = [...before].filter(([k]) => !here.has(k));
+          if (missing.length) {
+            const lastWk = missing.map(([, w]) => w).sort().pop(); const names = missing.map(([k]) => (k ? pretty(k) : null)).filter(Boolean);
+            text = here.size ? `Still missing this week: ${names.join(', ') || 'this tab’s file'}. (Last uploaded in week ${label(lastWk)}; open it from the Week box.)` : `Week ${label(W.selected)} is empty here: upload this week’s file${names.length > 1 ? 's' : ''} below. Last week’s ${names.length ? names.join(', ') : 'file'} ${names.length > 1 ? 'are' : 'is'} saved under week ${label(lastWk)}.`;
+          }
         }
         if (!text) { if (bar) bar.remove(); return; }
         if (!bar) { bar = h('div', { class: 'banner wk-banner', style: 'margin-bottom:10px' }); panel.prepend(bar); }
