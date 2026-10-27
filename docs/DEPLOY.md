@@ -19,17 +19,16 @@ account and its tables are created.
 
 1. Cloudflare dashboard → My Profile → API Tokens → Create Token → Custom → permission **Account · Workers Scripts · Edit** → create. Copy your **Account ID** (Workers & Pages overview page).
 2. Put them where the deploy can read them: as environment variables `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` (in a Claude Code cloud environment: environment settings → add under *Network secrets* / environment variables, and allow the hosts `api.cloudflare.com` and `*.workers.dev`).
-3. Create the private file `users.private` (it is git-ignored) with one account per line, for example:
+3. Create the private file `users.private` (it is git-ignored) with the password everyone will use, for example:
    ```
-   you@company.com|a-long-password|admin
-   colleague@company.com|another-long-password|view
+   team|AB12-CD34-EF56|admin
    ```
-   `admin` can upload, delete and restore; `view` can only look.
+   The sign-in screen asks for the password only (one shared password, everybody who knows it has full access). Extra lines with other passwords also work, and `email|password|view` gives read-only access.
 4. Run `tools/deploy-cloudflare.sh`. It prints the website address (`https://wtracker.<your-subdomain>.workers.dev`).
 5. Move the current data: on the claude.ai dashboard click **Backup**; on the new website sign in as an admin and click **Restore**, pick the file and the week.
 6. Your own address: buy the domain (for example at Cloudflare Registrar), then Workers & Pages → `wtracker` → Settings → Domains & routes → *Add custom domain*.
 
-To change an account or a password later: edit `users.private` and run the script again (everybody is signed out only if `.session-secret` is deleted).
+To change the password later: edit `users.private` (or ask Claude to generate a new one) and run the script again (everybody is signed out only if `.session-secret` is deleted).
 
 Alternative without a token: Workers & Pages → Create → *Import a repository* → `shandrif/lm-arena-` (branch `claude/confident-wozniak-2lnao2`, build command `node tools/build.js`, deploy command `npx wrangler deploy`), then add the secrets `USERS` and `SESSION_SECRET` under Settings → Variables and secrets.
 

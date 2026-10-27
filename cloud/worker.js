@@ -48,8 +48,8 @@ async function login(req, env) {
   const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM login_attempts WHERE ip = ?1 AND at > ?2').bind(ip, now - 900).first();
   if (recent && recent.n >= 8) return err(429, 'Too many wrong attempts. Try again in 15 minutes.');
   const email = String(b.email || '').trim().toLowerCase(); const pw = String(b.password || ''); let hit = null;
-  for (const u of users(env)) { const a = await safeEq(u.email, email); const c = await safeEq(u.pw, pw); if (a && c) hit = u; } // always compares every account: no timing hint
-  if (!hit) { await env.DB.prepare('INSERT INTO login_attempts (ip, at) VALUES (?1, ?2)').bind(ip, now).run(); await env.DB.prepare('DELETE FROM login_attempts WHERE at < ?1').bind(now - 86400).run(); return err(401, 'Wrong email or password.'); }
+  for (const u of users(env)) { const a = email ? await safeEq(u.email, email) : true; const c = await safeEq(u.pw, pw); if (a && c) hit = u; } // password only (no email) is enough; always compares every account: no timing hint
+  if (!hit) { await env.DB.prepare('INSERT INTO login_attempts (ip, at) VALUES (?1, ?2)').bind(ip, now).run(); await env.DB.prepare('DELETE FROM login_attempts WHERE at < ?1').bind(now - 86400).run(); return err(401, 'Wrong password.'); }
   return json({ ok: true, email: hit.email, canWrite: hit.admin }, 200, { 'set-cookie': setCookie(await makeSession(env, hit), SESSION_SECONDS) });
 }
 

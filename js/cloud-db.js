@@ -8,12 +8,11 @@
 
   function loginScreen() {
     const { h } = LM; const msg = h('div', { class: 'sub', style: 'color:var(--bad);min-height:18px;margin-top:8px' });
-    const email = h('input', { type: 'email', placeholder: 'Email', autocomplete: 'username', style: 'width:100%;padding:10px 12px;margin-top:8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)' });
-    const pw = h('input', { type: 'password', placeholder: 'Password', autocomplete: 'current-password', style: 'width:100%;padding:10px 12px;margin-top:8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)' });
-    const go = h('button', { type: 'submit', class: 'btn primary', style: 'width:100%;margin-top:12px' }, 'Sign in');
-    const form = h('form', { onsubmit: async (e) => { e.preventDefault(); go.disabled = true; msg.textContent = ''; try { const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-lm-request': '1' }, body: JSON.stringify({ email: email.value, password: pw.value }) }); if (r.ok) return location.reload(); let m = 'Could not sign in.'; try { m = (await r.json()).error || m; } catch (x) { /* ignore */ } msg.textContent = m; } catch (x) { msg.textContent = 'No connection. Try again.'; } go.disabled = false; } }, email, pw, go, msg);
-    document.body.append(h('div', { class: 'overlay', style: 'align-items:center' }, h('div', { class: 'modal', style: 'max-width:380px' }, h('div', { class: 'mh' }, h('h3', {}, '☕ Weekly Department Dashboard')), h('div', { class: 'mb' }, h('div', { class: 'sub' }, 'Sign in to continue.'), form))));
-    setTimeout(() => email.focus(), 50);
+    const pw = h('input', { type: 'password', placeholder: 'Password', autocomplete: 'current-password', autofocus: true, style: 'width:100%;padding:10px 12px;margin-top:8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)' });
+    const go = h('button', { type: 'submit', class: 'btn primary', style: 'width:100%;margin-top:12px' }, 'Open dashboard');
+    const form = h('form', { onsubmit: async (e) => { e.preventDefault(); go.disabled = true; msg.textContent = ''; try { const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-lm-request': '1' }, body: JSON.stringify({ password: pw.value }) }); if (r.ok) return location.reload(); let m = 'Could not sign in.'; try { m = (await r.json()).error || m; } catch (x) { /* ignore */ } msg.textContent = m; } catch (x) { msg.textContent = 'No connection. Try again.'; } go.disabled = false; } }, pw, go, msg);
+    document.body.append(h('div', { class: 'overlay', style: 'align-items:center' }, h('div', { class: 'modal', style: 'max-width:380px' }, h('div', { class: 'mh' }, h('h3', {}, '☕ Weekly Department Dashboard')), h('div', { class: 'mb' }, h('div', { class: 'sub' }, 'Enter the password to open the dashboard.'), form))));
+    setTimeout(() => pw.focus(), 50);
   }
   LM.ready = (async () => {
     let me; let res;
