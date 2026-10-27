@@ -10,6 +10,7 @@
     id: 'discussion', label: 'Discussion points',
     async mount(panel) {
       const readOnly = !!((LM.snapshot && LM.snapshot.active) || LM.viewOnly);
+      const editors = new Map(); let adding = false; // one edit box per note being edited, so searching / filtering never loses unsaved edits
       let notes = []; let fState = 'Open', fDept = 'All', q = ''; let editing = null;
       const load = async () => { const r = await LM.db.get('templates', KEY); notes = r && Array.isArray(r.notes) ? r.notes : []; notes.forEach((n) => { if (n.dept === 'Others') n.dept = 'Real estate'; }); };
       const save = async () => { await LM.db.put('templates', { dept: KEY, notes }); };
@@ -18,18 +19,18 @@
       const ed = LM.rich.editor({ placeholder: 'Write a discussion point…  (Ctrl+Enter to add)', onSubmit: () => add() });
       const deptSel = h('select', { class: 'sel' }, DEPTS.map((d) => h('option', { value: d }, d === 'General' ? 'Topic: General' : 'Topic: ' + d)));
       async function add() {
-        if (ed.isEmpty()) return ed.focus();
+        if (adding) return; if (ed.isEmpty()) return ed.focus(); adding = true;
         notes.unshift({ id: LM.uid(), text: ed.getText(), html: ed.getHTML(), dept: deptSel.value, done: false, createdAt: new Date().toISOString() });
-        await save(); ed.clear(); draw(); LM.toast('Note saved');
+        try { await save(); ed.clear(); draw(); LM.toast('Note saved'); } finally { adding = false; }
       }
       const search = h('input', { type: 'search', placeholder: 'Search notes…', oninput: () => { q = search.value.toLowerCase(); list(); } });
       const list$ = h('div');
 
       function noteEl(n) {
         if (editing === n.id) {
-          const t = LM.rich.editor({ html: n.html, text: n.html ? '' : n.text });
+          if (!editors.has(n.id)) editors.set(n.id, LM.rich.editor({ html: n.html, text: n.html ? '' : n.text })); const t = editors.get(n.id);
           return h('div', { class: 'card', 'data-noblk': '1', style: 'margin-bottom:10px' }, t.el, h('div', { class: 'tools', style: 'margin-top:8px' },
-            h('button', { class: 'btn primary small', onclick: async () => { if (t.isEmpty()) return; n.text = t.getText(); n.html = t.getHTML(); n.updatedAt = new Date().toISOString(); editing = null; await save(); list(); } }, 'Save'), h('button', { class: 'btn small', onclick: () => { editing = null; list(); } }, 'Cancel')));
+            h('button', { class: 'btn primary small', onclick: async () => { if (t.isEmpty()) return; n.text = t.getText(); n.html = t.getHTML(); n.updatedAt = new Date().toISOString(); editing = null; editors.delete(n.id); await save(); list(); } }, 'Save'), h('button', { class: 'btn small', onclick: () => { editing = null; editors.delete(n.id); list(); } }, 'Cancel')));
         }
         return h('div', { class: 'card', 'data-noblk': '1', style: 'margin-bottom:10px;' + (n.done ? 'opacity:.7' : '') },
           h('div', { style: 'display:flex;gap:10px;align-items:flex-start' },
@@ -37,8 +38,8 @@
             h('div', { style: 'flex:1;min-width:0' },
               n.html ? h('div', { class: 'rt', style: n.done ? 'text-decoration:line-through' : '', html: LM.rich.sanitize(n.html) }) : h('div', { dir: 'auto', style: 'white-space:pre-wrap;word-break:break-word;' + (n.done ? 'text-decoration:line-through' : '') }, n.text),
               h('div', { class: 'sub', style: 'margin-top:6px' }, h('span', { class: 'pill' }, n.dept || 'General'), ` · added ${when(n.createdAt)}`, n.updatedAt ? ` · edited ${when(n.updatedAt)}` : '', n.done && n.doneAt ? ` · discussed ${when(n.doneAt)}` : '')),
-            readOnly ? null : h('div', { style: 'display:flex;gap:6px' }, h('button', { class: 'btn small', onclick: () => { editing = n.id; list(); } }, 'Edit'),
-              h('button', { class: 'btn small danger', onclick: async () => { if (!await LM.ask('Delete this note permanently?')) return; notes = notes.filter((x) => x.id !== n.id); await save(); list(); } }, 'Delete'))));
+            readOnly ? null : h('div', { style: 'display:flex;gap:6px' }, h('button', { class: 'btn small', onclick: () => { if (editing && editing !== n.id) editors.delete(editing); editing = n.id; editors.delete(n.id); list(); } }, 'Edit'),
+              h('button', { class: 'btn small danger', onclick: async () => { if (!await LM.ask('Delete this note permanently?')) return; notes = notes.filter((x) => x.id !== n.id); editors.delete(n.id); if (editing === n.id) editing = null; await save(); list(); } }, 'Delete'))));
       }
       const visible = () => notes.filter((n) => (fState === 'All' || (fState === 'Open' ? !n.done : n.done)) && (fDept === 'All' || (n.dept || 'General') === fDept) && (!q || (n.text + ' ' + (n.dept || '')).toLowerCase().includes(q)));
       function list() {

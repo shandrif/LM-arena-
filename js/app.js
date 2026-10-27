@@ -5,13 +5,13 @@
   const generic = (id, l) => LM.makeGenericDept(id, l, DRAFT);
   // tabs are placed side by side by topic; a thin divider separates the groups
   const depts = [
-    LM.depts.sales, LM.depts.manualpunch, LM.depts.wastage, LM.depts.international, LM.depts.training,
+    LM.depts.sales, LM.depts.manualpunch, LM.depts.wastage, LM.depts.international, LM.depts.training, LM.depts.quality,
     LM.depts.procurement, LM.depts.warehouse, LM.depts.shipment,
     LM.depts.bakery, LM.depts.roasting,
     LM.depts.nep, LM.makeGenericDept('others', 'Real estate', null),
-    LM.depts.quality, LM.depts.discussion,
+    LM.depts.discussion,
   ];
-  const GROUP_END = ['training', 'shipment', 'roasting', 'others', 'quality']; // a divider is drawn after these
+  const GROUP_END = ['quality', 'shipment', 'roasting', 'others']; // a divider is drawn after these
   const panel = h('main'); const tabs = h('nav', { class: 'tabs' });
   let active = (location.hash || '#sales').slice(1);
   if (LM.blocks) LM.blocks.attach(panel, () => active);
