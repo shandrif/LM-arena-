@@ -17,8 +17,10 @@
   }
   LM.ready = (async () => {
     let me; let res;
-    try { res = await fetch('/api/ping', { cache: 'no-store' }); } catch (e) { return; }
-    if (res.status === 404 || res.status === 405 || !(res.headers.get('content-type') || '').includes('json')) return; // no cloud back-end here
+    const strict = !!window.LM_CLOUD_SITE; // the real website: never fall back to this browser's own storage
+    const blocked = (msg) => { LM.notice = msg; LM.viewOnly = true; const no = async () => { throw new Error(msg); }; LM.db = { all: async () => [], get: async () => undefined, put: no, del: no, clear: no }; };
+    try { res = await fetch('/api/ping', { cache: 'no-store' }); } catch (e) { if (strict) blocked('No connection to the server. Reload the page in a moment; nothing is shown or saved until it is back.'); return; }
+    if (res.status === 404 || res.status === 405 || !(res.headers.get('content-type') || '').includes('json')) { if (strict) blocked('The server did not answer correctly (it may still be updating). Reload the page in a moment; nothing is shown or saved until it does.'); return; } // no cloud back-end here
     if (res.status === 401) { let j = {}; try { j = await res.json(); } catch (e) { /* not json */ } if (j.login) { loginScreen(); await new Promise(() => {}); return; } } // not signed in: show the sign-in form and stop here
     if (!res.ok) { LM.notice = 'The website could not verify your sign-in, or it is not configured yet (Cloudflare Access settings). Nothing is shown or saved until that is fixed.'; LM.viewOnly = true; LM.db = { all: async () => [], get: async () => undefined, put: async () => { throw new Error(LM.notice); }, del: async () => { throw new Error(LM.notice); }, clear: async () => { throw new Error(LM.notice); } }; return; }
     me = await res.json();
