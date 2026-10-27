@@ -8,3 +8,4 @@ CREATE TABLE IF NOT EXISTS records (
 CREATE INDEX IF NOT EXISTS idx_records_week ON records(store, week);
 CREATE INDEX IF NOT EXISTS idx_records_dept ON records(store, dept, type, week);
 CREATE INDEX IF NOT EXISTS idx_records_updated ON records(updated_at);
+CREATE TABLE IF NOT EXISTS login_attempts (ip TEXT NOT NULL, at INTEGER NOT NULL); -- wrong sign-in attempts (lock-out after 8 in 15 minutes)

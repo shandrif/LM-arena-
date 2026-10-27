@@ -6,14 +6,24 @@
   const STORES = ['datasets', 'templates', 'history']; const KP = (s) => (s === 'templates' ? 'dept' : 'id');
   const { encode, decode } = LM.codec; const idOf = (s, k) => `${s}-${String(k).slice(0, 120)}`.replace(/[^A-Za-z0-9_\-.~:@+]/g, '_');
 
+  function loginScreen() {
+    const { h } = LM; const msg = h('div', { class: 'sub', style: 'color:var(--bad);min-height:18px;margin-top:8px' });
+    const email = h('input', { type: 'email', placeholder: 'Email', autocomplete: 'username', style: 'width:100%;padding:10px 12px;margin-top:8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)' });
+    const pw = h('input', { type: 'password', placeholder: 'Password', autocomplete: 'current-password', style: 'width:100%;padding:10px 12px;margin-top:8px;border:1px solid var(--line);border-radius:8px;font:inherit;background:var(--surface);color:var(--ink)' });
+    const go = h('button', { type: 'submit', class: 'btn primary', style: 'width:100%;margin-top:12px' }, 'Sign in');
+    const form = h('form', { onsubmit: async (e) => { e.preventDefault(); go.disabled = true; msg.textContent = ''; try { const r = await fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-lm-request': '1' }, body: JSON.stringify({ email: email.value, password: pw.value }) }); if (r.ok) return location.reload(); let m = 'Could not sign in.'; try { m = (await r.json()).error || m; } catch (x) { /* ignore */ } msg.textContent = m; } catch (x) { msg.textContent = 'No connection. Try again.'; } go.disabled = false; } }, email, pw, go, msg);
+    document.body.append(h('div', { class: 'overlay', style: 'align-items:center' }, h('div', { class: 'modal', style: 'max-width:380px' }, h('div', { class: 'mh' }, h('h3', {}, '☕ Weekly Department Dashboard')), h('div', { class: 'mb' }, h('div', { class: 'sub' }, 'Sign in to continue.'), form))));
+    setTimeout(() => email.focus(), 50);
+  }
   LM.ready = (async () => {
     let me; let res;
     try { res = await fetch('/api/ping', { cache: 'no-store' }); } catch (e) { return; }
     if (res.status === 404 || res.status === 405 || !(res.headers.get('content-type') || '').includes('json')) return; // no cloud back-end here
+    if (res.status === 401) { let j = {}; try { j = await res.json(); } catch (e) { /* not json */ } if (j.login) { loginScreen(); await new Promise(() => {}); return; } } // not signed in: show the sign-in form and stop here
     if (!res.ok) { LM.notice = 'The website could not verify your sign-in, or it is not configured yet (Cloudflare Access settings). Nothing is shown or saved until that is fixed.'; LM.viewOnly = true; LM.db = { all: async () => [], get: async () => undefined, put: async () => { throw new Error(LM.notice); }, del: async () => { throw new Error(LM.notice); }, clear: async () => { throw new Error(LM.notice); } }; return; }
     me = await res.json();
     const cache = {}; STORES.forEach((s) => (cache[s] = new Map()));
-    const call = async (path, opt = {}) => { const r = await fetch('/api' + path, { cache: 'no-store', ...opt, headers: { 'content-type': 'application/json', ...(opt.headers || {}) } }); if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { /* not json */ } throw new Error(m || `Server answered ${r.status}`); } return r.json(); };
+    const call = async (path, opt = {}) => { const r = await fetch('/api' + path, { cache: 'no-store', ...opt, headers: { 'content-type': 'application/json', 'x-lm-request': '1', ...(opt.headers || {}) } }); if (!r.ok) { let m = ''; try { m = (await r.json()).error; } catch (e) { /* not json */ } throw new Error(m || `Server answered ${r.status}`); } return r.json(); };
     async function pool(items, n, fn) { let i = 0; await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const it = items[i++]; await fn(it); } })); }
     let stamp = null; const markStamp = async () => { try { stamp = (await call('/stamp')).stamp; } catch (e) { /* next poll */ } };
     async function load(week) {
@@ -24,7 +34,7 @@
     const meta = (store, rec) => ({ store, key: String(rec[KP(store)]), dept: rec.dept || null, type: rec.type || null, week: store === 'templates' ? null : rec.week || null, start: rec.start || null, end: rec.end || null, file_name: rec.fileName || null, uploaded_at: rec.uploadedAt || null });
     let chain = Promise.resolve(); const serial = (fn) => (chain = chain.then(fn, fn));
     const denied = () => { throw new Error('View only: your account is not allowed to change data.'); };
-    LM.cloud = { me, load, weeks: async () => (await call('/weeks')).weeks, async exportAll() { const { records } = await call('/export'); const out = { datasets: [], templates: [], history: [] }; await pool(records, 8, async (r) => { try { const rec = await decode(r.data); if (r.week && !rec.week && r.store !== 'templates') rec.week = r.week; if (out[r.store]) out[r.store].push(rec); } catch (e) { /* skip unreadable */ } }); return out; }, clearWeek: (week) => call('/clear', { method: 'POST', body: JSON.stringify({ week }) }) };
+    LM.cloud = { me, signOut: async () => { try { await call('/logout', { method: 'POST', body: '{}' }); } catch (e) { /* ignore */ } location.reload(); }, load, weeks: async () => (await call('/weeks')).weeks, async exportAll() { const { records } = await call('/export'); const out = { datasets: [], templates: [], history: [] }; await pool(records, 8, async (r) => { try { const rec = await decode(r.data); if (r.week && !rec.week && r.store !== 'templates') rec.week = r.week; if (out[r.store]) out[r.store].push(rec); } catch (e) { /* skip unreadable */ } }); return out; }, clearWeek: (week) => call('/clear', { method: 'POST', body: JSON.stringify({ week }) }) };
     LM.sharedMode = true; LM.cloudMode = true; LM.viewOnly = !me.canWrite;
     LM.db = {
       all: async (s) => [...cache[s].values()],

@@ -10,3 +10,7 @@ dist/
 *.json
 !package.json
 .wrangler/
+.dev.vars
+users.private
+.session-secret
+.secrets.tmp.json
