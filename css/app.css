@@ -259,3 +259,41 @@ main.enter .kpis > .card:nth-child(4) { animation-delay: 90ms; } main.enter .kpi
 @keyframes lm-toast-out { to { opacity: 0; transform: translate(-50%, 6px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
 @media (max-width: 600px) { main { padding: 14px 12px 40px; } .bar { padding: 10px 12px 6px; } }
+
+/* ---- Ask the dashboard (Gemini assistant) ---- */
+.ask-fab { position: fixed; right: 20px; bottom: 20px; z-index: 60; display: flex; align-items: center; gap: 8px; border: 0; border-radius: 999px; padding: 12px 18px; background: var(--btn-bg); color: var(--btn-fg); font-weight: 700; cursor: pointer; box-shadow: var(--shadow-lg); transition: transform .16s var(--ease), opacity .16s; }
+.ask-fab:active { transform: scale(.97); }
+.ask-fab.on { opacity: 0; pointer-events: none; transform: scale(.9); }
+.ask-spark { color: var(--teal); font-size: 16px; }
+@media (hover: hover) { .ask-fab:hover { transform: translateY(-2px); } }
+.ask-panel { position: fixed; right: 20px; bottom: 20px; z-index: 61; width: min(430px, calc(100vw - 24px)); height: min(640px, calc(100vh - 40px)); display: flex; flex-direction: column; background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-lg); overflow: hidden; opacity: 0; transform: translateY(14px) scale(.97); transform-origin: bottom right; pointer-events: none; visibility: hidden; transition: opacity .18s var(--ease), transform .2s var(--ease), visibility 0s .2s; }
+.ask-panel.open { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition: opacity .18s var(--ease), transform .2s var(--ease); }
+.ask-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.ask-sub { font-size: 12px; color: var(--muted); }
+.ask-week { color: var(--accent); font-weight: 600; }
+.ask-x { border: 0; background: none; font-size: 24px; line-height: 1; cursor: pointer; color: var(--muted); padding: 0 4px; }
+.ask-list { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; scroll-behavior: smooth; }
+.ask-hello { color: var(--muted); } .ask-hello b { color: var(--ink); font-size: 15px; } .ask-hello p { margin: 6px 0 0; }
+.ask-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.ask-chips button { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 12px; cursor: pointer; font-size: 13px; transition: transform .14s var(--ease), border-color .14s; }
+.ask-chips button:active { transform: scale(.97); }
+@media (hover: hover) { .ask-chips button:hover { border-color: var(--accent); } }
+.ask-m { max-width: 92%; padding: 9px 12px; border-radius: 14px; word-wrap: break-word; animation: askin .22s var(--ease); }
+.ask-m.me { align-self: flex-end; background: var(--btn-bg); color: var(--btn-fg); border-bottom-right-radius: 4px; white-space: pre-wrap; }
+.ask-m.bot { align-self: flex-start; background: var(--bg); border-bottom-left-radius: 4px; max-width: 100%; }
+.ask-m.bot p { margin: 0 0 6px; } .ask-m.bot p:last-child { margin: 0; } .ask-m.bot ul, .ask-m.bot ol { margin: 4px 0 6px; padding-left: 20px; }
+.ask-m.bot code { background: var(--note-bg); border-radius: 4px; padding: 0 4px; font-size: 12px; word-break: break-all; }
+.ask-m.pending { color: var(--muted); font-style: italic; } .ask-dots { animation: askblink 1s infinite; }
+.ask-m.err { background: var(--bad-bg); color: var(--bad); }
+.ask-tw { overflow-x: auto; margin: 6px 0; } .ask-tw table { border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ask-tw th, .ask-tw td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: left; white-space: nowrap; } .ask-tw th { color: var(--muted); font-weight: 600; }
+.ask-how { margin-top: 8px; font-size: 12px; color: var(--muted); } .ask-how summary { cursor: pointer; }
+.ask-step { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: baseline; } .ask-step code { font-size: 11px; }
+.ask-foot { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); align-items: flex-end; }
+.ask-foot textarea { font: inherit; flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; background: var(--bg); color: var(--ink); max-height: 120px; outline: none; }
+.ask-foot textarea:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.ask-send { border: 0; border-radius: 12px; width: 40px; height: 40px; background: var(--accent); color: #fff; cursor: pointer; transition: transform .14s var(--ease); } .ask-send:active { transform: scale(.94); } .ask-send:disabled { opacity: .45; cursor: default; }
+.ask-note { font-size: 11px; color: var(--muted); padding: 0 14px 10px; }
+@keyframes askin { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes askblink { 50% { opacity: .2; } }
+@media (prefers-reduced-motion: reduce) { .ask-panel, .ask-m, .ask-fab { transition: none; animation: none; } }

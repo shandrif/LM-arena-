@@ -58,3 +58,13 @@ One week of reports is about 1 MB (about 25 rows), so a year is about 50 MB. The
 * Storage back-ends share one small interface (`LM.db.all/get/put/del/clear`): `core.js` (this browser), `shared-db.js` (claude.ai artifact database), `cloud-db.js` (this website). `weeks.js` wraps whichever is active and adds the week logic.
 * Week rule: Sunday-Saturday, named by the Saturday; a Sunday-dated file counts for the week that just ended. Long reference files (> 100 days, e.g. the year calendar) use week `2000-01-01` = available in every week. Reports saved before weeks existed have no week and show in every week until the owner assigns one (one-time prompt).
 * Test locally: `npm i wrangler`; put `USERS` and `SESSION_SECRET` in a git-ignored `.dev.vars`; `wrangler d1 execute wtracker-db --local --file cloud/schema.sql`; `wrangler dev --local`.
+
+## Ask the dashboard (Gemini assistant)
+
+The chat button on the website sends each step through the Worker to Google Gemini. The Gemini key is a Worker secret and never reaches the browser.
+
+1. Create a key in Google AI Studio (https://aistudio.google.com/apikey). Use a billed (paid-tier) project, because the free tier may use prompts to improve Google's products.
+2. Cloudflare dashboard, Workers & Pages, `wtracker`, Settings, Variables and secrets, Add, type Secret, name `GEMINI_API_KEY`, paste the key, Deploy.
+3. Optional variables: `GEMINI_MODEL` (default `gemini-flash-latest`; use `gemini-pro-latest` for harder questions), `ASK_DAILY` (Gemini calls per day for the whole team, default 800).
+
+Without the key, the chat opens and says the assistant is not switched on yet; nothing else is affected. Lookups run in the browser on the open week's reports, so answers never mix weeks.

@@ -57,7 +57,7 @@
   }
   function bump(week, d) { let o = W.list.find((x) => x.week === week); if (!o) { o = { week, n: 0 }; W.list.push(o); W.list.sort((a, b) => (a.week < b.week ? 1 : -1)); } o.n = Math.max(0, o.n + d); fillControl(); }
 
-  W.select = async (we) => { W.selected = we; persist(we); if (LM.cloud) { try { await LM.cloud.load(we); } catch (e) { if (LM.say) LM.say('Could not load that week: ' + e.message); } } fillControl(); if (LM.refresh) LM.refresh(); };
+  W.select = async (we) => { W.selected = we; persist(we); if (LM.cloud) { try { await LM.cloud.load(we); } catch (e) { if (LM.say) LM.say('Could not load that week: ' + e.message); } } fillControl(); document.dispatchEvent(new Event('lm-week-changed')); if (LM.refresh) LM.refresh(); };
   W.reload = async () => { if (LM.cloud) { await LM.cloud.load(W.selected); await W.rebuild(); fillControl(); } else await W.rebuild(); };
   W.startNew = async () => {
     const top = W.list.length ? W.list[0] : null; const latest = top ? top.week : W.selected;

@@ -83,12 +83,38 @@ async function load(env, week) {
   return (await env.DB.prepare(q).bind(week, from).all()).results;
 }
 
+/* ---------- assistant: forwards a chat step to Gemini. The key (secret GEMINI_API_KEY) never leaves the Worker. ---------- */
+const ASK_DAILY = 800;       // Gemini calls per day for the whole team (one question is usually 2-4 calls)
+const ASK_MAX_BODY = 600_000;
+async function ask(req, env) {
+  if (!env.GEMINI_API_KEY) return json({ error: 'The Gemini key has not been added yet.', code: 'no-key' }, 503);
+  const raw = await req.text(); if (raw.length > ASK_MAX_BODY) return err(413, 'That conversation is too long. Start a new chat.');
+  let b; try { b = JSON.parse(raw); } catch (e) { return err(400, 'Bad request.'); }
+  if (!Array.isArray(b.contents) || !b.contents.length) return err(400, 'No question.');
+  const day = new Date().toISOString().slice(0, 10);
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS ask_usage (day TEXT PRIMARY KEY, n INTEGER NOT NULL)').run();
+  const used = await env.DB.prepare('SELECT n FROM ask_usage WHERE day=?').bind(day).first();
+  if (used && used.n >= (+env.ASK_DAILY || ASK_DAILY)) return err(429, 'The daily question limit has been reached. Try again tomorrow.');
+  await env.DB.prepare('INSERT INTO ask_usage(day,n) VALUES(?,1) ON CONFLICT(day) DO UPDATE SET n=n+1').bind(day).run();
+  const model = (env.GEMINI_MODEL || 'gemini-flash-latest').replace(/[^\w.\-]/g, '');
+  const body = { systemInstruction: { parts: [{ text: String(b.system || '').slice(0, 12000) }] }, contents: b.contents,
+    tools: [{ functionDeclarations: Array.isArray(b.tools) ? b.tools.slice(0, 12) : [] }], toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+    generationConfig: { temperature: 0, maxOutputTokens: 4096 } };
+  const base = env.GEMINI_BASE || 'https://generativelanguage.googleapis.com';
+  let r; try { r = await fetch(`${base}/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY }, body: JSON.stringify(body) }); }
+  catch (e) { return err(502, 'Could not reach Gemini. Please try again.'); }
+  const txt = await r.text(); let j; try { j = JSON.parse(txt); } catch (e) { return err(502, 'Gemini sent an unreadable reply.'); }
+  if (!r.ok) { const msg = (j.error && j.error.message) || ''; return err(r.status === 429 ? 429 : 502, r.status === 429 ? 'Gemini is busy or its limit is reached. Wait a minute and try again.' : /API key/i.test(msg) ? 'The Gemini key was rejected. Ask the owner to check it.' : 'Gemini could not answer (' + r.status + ').'); }
+  return json({ candidates: j.candidates, promptFeedback: j.promptFeedback });
+}
+
 async function api(req, env, url) {
   const path = url.pathname.replace(/^\/api/, ''); const m = req.method;
   if (m !== 'GET' && req.headers.get('x-lm-request') !== '1') return err(403, 'Missing request header.'); // blocks cross-site form posts
   if (path === '/login' && m === 'POST') return login(req, env);
   if (path === '/logout' && m === 'POST') return json({ ok: true }, 200, { 'set-cookie': setCookie('', 0) });
   const me = await whoAmI(req, env); if (!me) return json({ error: 'Sign in required.', login: users(env).length > 0 }, 401);
+  if (path === '/ask' && m === 'POST') return ask(req, env);
   if (path === '/ping' && m === 'GET') return json({ ok: true, email: me.email, canWrite: me.admin });
   if (path === '/weeks' && m === 'GET') {
     const r = await env.DB.prepare(`SELECT week, SUM(CASE WHEN store = 'datasets' THEN 1 ELSE 0 END) AS n FROM records WHERE store IN ('datasets','history') AND week IS NOT NULL GROUP BY week ORDER BY week DESC`).all(); return json({ weeks: r.results });
