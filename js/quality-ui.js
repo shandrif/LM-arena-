@@ -12,7 +12,7 @@
   LM.depts.quality = {
     id: 'quality', label: 'Quality',
     async mount(panel) {
-      let sets = [], sub = 'Overview'; const sel = {}; // sel[type] = dataset id
+      let sets = [], sub = 'Complaints'; const sel = {}; // sel[type] = dataset id
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'quality'); draw(); };
       const of = (t) => sets.filter((s) => s.type === t).sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : a.uploadedAt < b.uploadedAt ? 1 : -1));
       const cur = (t) => { const l = of(t); return l.find((s) => s.id === sel[t]) || l[0] || null; };
@@ -62,7 +62,7 @@
         LM.dropZone(panel, uploadMany, true);
         if (!sets.length) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No Quality reports uploaded yet'), h('p', { class: 'sub' }, 'Recognised reports:'),
           h('div', { style: 'display:inline-grid;gap:4px;text-align:left' }, Object.values(T).map((t) => h('div', {}, h('b', {}, t.label), ' – ', h('span', { class: 'sub' }, t.hint))))));
-        const tabs = ['Overview', 'Complaints', 'Inspections', 'Factory audit', 'Store visits', 'WiFi', 'Uploads'];
+        const tabs = ['Complaints', 'Inspections', 'Factory audit', 'Store visits', 'WiFi', 'Uploads'];
         body.replaceChildren(h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, Complaints: complaints, Inspections: inspections, 'Factory audit': audit, 'Store visits': visits, WiFi: wifi, Uploads: uploads }[sub]());
       }
       const none = (t) => h('div', { class: 'banner' }, `No ${T[t].label} uploaded yet (${T[t].hint}).`);

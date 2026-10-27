@@ -1,6 +1,7 @@
 # Weekly Department Dashboard
 
-One tab per department (Sales, Wastage, International, NEP, Procurement, Quality, Roasting, Training, Warehouse, Others).
+One tab per department, placed side by side by topic: Sales · Manual punch · Wastage · International · Training | Procurement · Warehouse · Shipment | Bakery factory · Roasting | NEP · Real estate | Quality | Discussion points.
+There is no Overview sub-tab; each tab opens on its first working sub-tab. Every block (card, chart, KPI row, table) has a Hide / Show tag; hidden blocks are remembered per browser, and a "Show all" bar appears when something is hidden. Discussion points use a Word-style rich-text editor (fonts, sizes, colours, highlight, lists, alignment, links); notes are stored as sanitised HTML.
 Each tab has its own **Upload**; every file is **checked before anything is saved** (new/renamed columns, bad values,
 duplicates, re-sent files, overlapping periods…) and nothing is stored until you approve the review.
 
@@ -33,5 +34,5 @@ The repo is plain static files, so any static host works.
 
 ## Code map
 `js/engine.js` generic file-check engine · `js/core.js` helpers, storage, review dialog · `js/snapshot.js` HTML copy / clear ·
-`js/<dept>-model.js` parsing + checks (no DOM) · `js/<dept>-ui.js` screens · `js/generic-ui.js` flexible Others tab ·
+`js/<dept>-model.js` parsing + checks (no DOM) · `js/<dept>-ui.js` screens · `js/generic-ui.js` flexible tab (used for Real estate) · `js/richtext.js` note editor · `js/blocks.js` hide/show blocks ·
 `js/app.js` tabs + header. Libraries are vendored in `vendor/`.

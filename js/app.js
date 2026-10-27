@@ -3,13 +3,18 @@
   const LM = window.LM; const { h } = LM;
   const DRAFT = 'No custom summary for this department yet. Files you upload are checked and summarised automatically; share the weekly report with Claude to build the dedicated KPIs and format checks for this tab.';
   const generic = (id, l) => LM.makeGenericDept(id, l, DRAFT);
+  // tabs are placed side by side by topic; a thin divider separates the groups
   const depts = [
-    LM.depts.sales, LM.depts.wastage, LM.depts.international, LM.depts.nep, LM.depts.procurement,
-    LM.depts.quality, LM.depts.roasting, LM.depts.training, LM.depts.warehouse,
-    LM.makeGenericDept('others', 'Others', null), LM.depts.shipment, LM.depts.bakery, LM.depts.manualpunch, LM.depts.discussion,
+    LM.depts.sales, LM.depts.manualpunch, LM.depts.wastage, LM.depts.international, LM.depts.training,
+    LM.depts.procurement, LM.depts.warehouse, LM.depts.shipment,
+    LM.depts.bakery, LM.depts.roasting,
+    LM.depts.nep, LM.makeGenericDept('others', 'Real estate', null),
+    LM.depts.quality, LM.depts.discussion,
   ];
+  const GROUP_END = ['training', 'shipment', 'roasting', 'others', 'quality']; // a divider is drawn after these
   const panel = h('main'); const tabs = h('nav', { class: 'tabs' });
   let active = (location.hash || '#sales').slice(1);
+  if (LM.blocks) LM.blocks.attach(panel, () => active);
   if (!depts.some((d) => d.id === active)) active = 'sales';
 
   async function show(id) {
@@ -17,7 +22,7 @@
     tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
     panel.replaceChildren(); await depts.find((d) => d.id === id).mount(panel);
   }
-  depts.forEach((d) => tabs.append(h('button', { 'data-id': d.id, onclick: () => show(d.id) }, d.label)));
+  depts.forEach((d) => tabs.append(h('button', { 'data-id': d.id, class: GROUP_END.includes(d.id) ? 'grp' : '', onclick: () => show(d.id) }, d.label)));
 
   async function backup() {
     const b64 = (buf) => { let t = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };

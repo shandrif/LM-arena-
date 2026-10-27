@@ -9,7 +9,7 @@
   LM.depts.wastage = {
     id: 'wastage', label: 'Wastage',
     async mount(panel) {
-      let sets = [], salesSets = [], cur = null, sub = 'Overview';
+      let sets = [], salesSets = [], cur = null, sub = 'Branches';
       const tpl = async () => ({ ...W.defaultTemplate(), ...((await LM.db.get('templates', 'wastage')) || {}) });
       let T = W.defaultTemplate();
       const reload = async () => {
@@ -48,7 +48,7 @@
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No wastage report uploaded yet'), h('p', { class: 'sub' }, 'Drop the weekly Waste Report (.xlsx) here, or use the Upload button.'),
           h('p', { class: 'sub' }, 'Expected: sheet “Products statement” (Code, Stock list, U/M, Quantity, Unit Pr, Wastage Value, Document date, Document type, Write-off storage, Category). Optional “Sheet2” links storages to branches.')));
         const c = calc(ds); c.prev = prevOf(ds);
-        const tabs = ['Overview', 'Branches', 'Items', 'Days', 'Uploads'];
+        const tabs = ['Branches', 'Items', 'Days', 'Uploads'];
         const st = h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t)));
         const ns = c.netSources; const unm = c.branches.filter((b) => /^U:/.test(b.key)).length;
         const notes = [];

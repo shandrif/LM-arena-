@@ -23,7 +23,7 @@
   LM.depts.training = {
     id: 'training', label: 'Training',
     async mount(panel) {
-      let sets = [], cur = null, sub = 'Overview';
+      let sets = [], cur = null, sub = null;
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'training').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
@@ -50,8 +50,8 @@
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No training report uploaded yet'), h('p', { class: 'sub' }, 'Drop the weekly training report (.pptx). Onboarding, upcoming trainees, verification, programmes and Know to Grow are read from its slides and tables.')));
-        const GL = !!ds.data.glance; const tabs = GL ? ['Overview', 'Onboarding & pipeline', 'Verification & development', 'Know to Grow & activities', 'All slides', 'Uploads'] : ['Overview', 'Onboarding', 'Verification & visits', 'Programs', 'Know to Grow', 'Activities & projects', 'All slides', 'Uploads'];
-        if (!tabs.includes(sub)) sub = 'Overview';
+        const GL = !!ds.data.glance; const tabs = GL ? ['Onboarding & pipeline', 'Verification & development', 'Know to Grow & activities', 'All slides', 'Uploads'] : ['Onboarding', 'Verification & visits', 'Programs', 'Know to Grow', 'Activities & projects', 'All slides', 'Uploads'];
+        if (!tabs.includes(sub)) sub = tabs[0];
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Week ${ds.data.weekNo ? 'W' + ds.data.weekNo + ' · ' : ''}${ds.start} → ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))),
           (GL ? { Overview: gOverview, 'Onboarding & pipeline': gOnboarding, 'Verification & development': gVerification, 'Know to Grow & activities': gK2g, 'All slides': allSlides, Uploads: uploads } : { Overview: overview, Onboarding: onboarding, 'Verification & visits': verification, Programs: programs, 'Know to Grow': know, 'Activities & projects': activities, 'All slides': allSlides, Uploads: uploads })[sub](ds));
       }

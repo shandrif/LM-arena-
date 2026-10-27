@@ -10,7 +10,7 @@
   LM.depts.roasting = {
     id: 'roasting', label: 'Roasting',
     async mount(panel) {
-      let sets = [], smp = [], smCur = null, cur = null, sub = 'Overview', year = 'All';
+      let sets = [], smp = [], smCur = null, cur = null, sub = 'Production', year = 'All';
       const reload = async () => { const all = (await LM.db.all('datasets')).filter((d) => d.dept === 'roasting'); smp = all.filter((d) => d.type === 'samples').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!smp.find((s) => s.id === smCur)) smCur = smp[0] ? smp[0].id : null; sets = all.filter((d) => d.type !== 'samples').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function uploadMany(files) { for (const f of [].concat(files)) await upload(f); }
@@ -53,7 +53,7 @@
         const ds = sets.find((s) => s.id === cur);
         if (!ds && smp.length) { sub = 'Green bean samples'; return body.replaceChildren(h('div', { class: 'subtabs' }, ['Green bean samples', 'Uploads'].map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), sub === 'Uploads' ? uploads() : samples()); }
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No roasting report uploaded yet'), h('p', { class: 'sub' }, 'Drop the weekly “Coffee production batches & SOH” workbook (.xlsx). It should contain the Weekly production sheet and the dated stock-on-hand sheet.')));
-        const tabs = ['Overview', 'Production', 'Stock', 'Planning', ...(smp.length ? ['Green bean samples'] : []), 'Uploads'];
+        const tabs = ['Production', 'Stock', 'Planning', ...(smp.length ? ['Green bean samples'] : []), 'Uploads'];
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Report ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, Production: production, Stock: stock, Planning: planning, 'Green bean samples': samples, Uploads: uploads }[sub](ds));
       }
 

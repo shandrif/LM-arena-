@@ -14,7 +14,7 @@
   LM.depts.international = {
     id: 'international', label: 'International',
     async mount(panel) {
-      let sets = [], sub = 'Overview', evMonth = 0, evQuery = ''; const sel = {};
+      let sets = [], sub = 'London', evMonth = 0, evQuery = ''; const sel = {};
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'international'); draw(); };
       const of = (t) => sets.filter((s) => s.type === t).sort((a, b) => (a.end < b.end ? 1 : -1));
       const cur = (t) => { const l = of(t); return l.find((s) => s.id === sel[t]) || l[0] || null; };
@@ -45,7 +45,7 @@
                 rec = { id: LM.uid(), dept: 'international', type: p.type, start: d.start, end: d.end, fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), data: d.data }; if (isPdf) rec.pdf = rf.buf;
                 await LM.db.put('datasets', rec); sel[p.type] = rec.id; sets = (await LM.db.all('datasets')).filter((x) => x.dept === 'international'); }
               if (res.parts) await LM.db.put('templates', { ...tpl, combined: list.map((p) => p.type) });
-              const last = list[0]; if (last.ds.data.period) batchEnd = last.ds.end; sub = res.parts ? 'Overview' : { london: 'London', iraq: 'Iraq', events: 'Event performance', expansion: 'Expansion', nso: 'Saudi NSO', calendar: 'Events' }[res.type]; LM.toast(res.parts ? `Weekly review deck processed (${list.length} sections)` : `${T[res.type].label} ${last.ds.end} processed`); draw(); setTimeout(resolve, 50); } });
+              const last = list[0]; if (last.ds.data.period) batchEnd = last.ds.end; sub = res.parts ? 'London' : { london: 'London', iraq: 'Iraq', events: 'Event performance', expansion: 'Expansion', nso: 'Saudi NSO', calendar: 'Events' }[res.type]; LM.toast(res.parts ? `Weekly review deck processed (${list.length} sections)` : `${T[res.type].label} ${last.ds.end} processed`); draw(); setTimeout(resolve, 50); } });
           const dlg = LM.review(info());
         });
       }
@@ -71,7 +71,7 @@
         panel.replaceChildren(h('div', { class: 'head' }, h('h2', {}, 'International'), h('span', { class: 'sub' }, 'Upload the weekly decks (.pptx) and the events calendar (.pdf), together or one by one.'), h('div', { class: 'spacer' }), LM.filePicker(uploadMany, 'Upload International files', true, '.pptx,.pdf')), body);
         LM.dropZone(panel, uploadMany, true);
         if (!sets.length) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No International files uploaded yet'), h('div', { style: 'display:inline-grid;gap:4px;text-align:left' }, Object.values(T).map((t) => h('div', {}, h('b', {}, t.label))))));
-        const tabs = ['Overview', 'London', 'Iraq', 'Event performance', 'Expansion', 'Saudi NSO', 'Events', 'Uploads'];
+        const tabs = ['London', 'Iraq', 'Event performance', 'Expansion', 'Saudi NSO', 'Events', 'Uploads'];
         body.replaceChildren(h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, London: () => review('london'), Iraq: () => review('iraq'), 'Event performance': perf, Expansion: expansion, 'Saudi NSO': nso, Events: events, Uploads: uploads }[sub]());
       }
       const none = (t) => h('div', { class: 'banner' }, `No ${T[t].label} uploaded yet.`);

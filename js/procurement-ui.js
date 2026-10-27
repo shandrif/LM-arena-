@@ -8,7 +8,7 @@
   LM.depts.procurement = {
     id: 'procurement', label: 'Procurement',
     async mount(panel) {
-      let sets = [], tpl = { dept: 'procurement' }, sub = 'Overview', prView = 'Requisitions'; const sel = {};
+      let sets = [], tpl = { dept: 'procurement' }, sub = 'Pending POs', prView = 'Requisitions'; const sel = {};
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'procurement'); tpl = { dept: 'procurement', ...((await LM.db.get('templates', 'procurement')) || {}) }; await loadMeet(); await loadOther(); draw(); };
       const of = (t) => sets.filter((s) => s.type === t).sort((a, b) => (a.end < b.end ? 1 : -1));
       const cur = (t) => { const l = of(t); return l.find((s) => s.id === sel[t]) || l[0] || null; };
@@ -100,7 +100,7 @@
         panel.replaceChildren(h('div', { class: 'head' }, h('h2', {}, 'Procurement'), h('span', { class: 'sub' }, 'Upload the pending PR and pending PO files (together or separately).'), h('div', { class: 'spacer' }), LM.filePicker(uploadMany, 'Upload Procurement files', true)), body);
         LM.dropZone(panel, uploadMany, true);
         if (!sets.length) return body.replaceChildren(meetingsCard(false), h('div', { class: 'empty' }, h('h3', {}, 'No procurement reports uploaded yet'), h('div', { style: 'display:inline-grid;gap:4px;text-align:left' }, Object.values(T).map((t) => h('div', {}, h('b', {}, t.label), ' – ', h('span', { class: 'sub' }, t.hint))))));
-        const tabs = ['Overview', 'Pending POs', 'Pending PRs', 'Critical & overstock', 'Supplier meetings', 'Uploads'];
+        const tabs = ['Pending POs', 'Pending PRs', 'Critical & overstock', 'Supplier meetings', 'Uploads'];
         body.replaceChildren(h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, 'Pending POs': poTab, 'Pending PRs': prTab, 'Critical & overstock': critical, 'Supplier meetings': () => meetingsCard(false), Uploads: uploads }[sub]());
       }
       const none = (t) => h('div', { class: 'banner' }, `No ${T[t].label} uploaded yet.`);

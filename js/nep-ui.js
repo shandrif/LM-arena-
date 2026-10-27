@@ -14,7 +14,7 @@
   LM.depts.nep = {
     id: 'nep', label: 'NEP',
     async mount(panel) {
-      let sets = [], cur = null, sub = 'Overview', planYear = 'All';
+      let sets = [], cur = null, sub = 'Next 6 months', planYear = 'All';
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'nep').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
@@ -41,7 +41,7 @@
         const ds = sets.find((s) => s.id === cur);
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No NEP file uploaded yet'), h('p', { class: 'sub' }, 'Drop the NEP workbook (.xlsx) with the sheets NEP (monthly plan), NSO Tracker and Closures.')));
         const c = N.compute(ds); if (!c) return body.replaceChildren(h('div', { class: 'banner' }, 'This upload has no monthly plan sheet.'));
-        const tabs = ['Overview', 'Next 6 months', 'Pipeline', 'Plan by month', 'Other', 'Uploads'];
+        const tabs = ['Next 6 months', 'Pipeline', 'Plan by month', 'Other', 'Uploads'];
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Plan as of ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))),
           { Overview: overview, 'Next 6 months': next6, Pipeline: pipeline, 'Plan by month': planTab, Other: other, Uploads: uploads }[sub](ds, c));
       }

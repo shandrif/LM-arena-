@@ -19,7 +19,7 @@
   LM.depts.shipment = {
     id: 'shipment', label: 'Shipment',
     async mount(panel) {
-      let sets = [], cur = null, sub = 'Overview', fSt = 'All', fCat = 'All', fPod = 'All', q = '';
+      let sets = [], cur = null, sub = 'Arrivals', fSt = 'All', fCat = 'All', fPod = 'All', q = '';
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'shipment').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
@@ -46,7 +46,7 @@
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No shipment file uploaded yet'), h('p', { class: 'sub' }, 'Drop the shipment arrivals workbook (.xlsx): one row per shipment with Supplier, Items, Terms, CNTR, BL, ETD, ETA, POD and Remarks.')));
-        const c = S.compute(ds); const tabs = ['Overview', 'Arrivals', 'Needs attention', 'All shipments', 'Suppliers', 'Uploads'];
+        const c = S.compute(ds); const tabs = ['Arrivals', 'Needs attention', 'All shipments', 'Suppliers', 'Uploads'];
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Status as of ${dstr(ds.end)} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))),
           { Overview: overview, Arrivals: arrivals, 'Needs attention': attention, 'All shipments': all, Suppliers: suppliers, Uploads: uploads }[sub](ds, c));
       }

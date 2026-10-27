@@ -7,7 +7,7 @@
     id: 'sales', label: 'Sales',
     async mount(panel) {
       let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales').sort((a, b) => (a.start < b.start ? 1 : -1));
-      let cur = sets[0] ? sets[0].id : null; let sub = 'Overview';
+      let cur = sets[0] ? sets[0].id : null; let sub = 'Days';
       const template = async () => ({ ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) });
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales').sort((a, b) => (a.start < b.start ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
@@ -70,7 +70,7 @@
           h('p', { class: 'sub' }, 'Drop the Sales Performance Report (.xlsx) here, or use the Upload button.'),
           h('p', { class: 'sub' }, 'Expected sheets: Data TY (Day, Store, Net sales, Bills), Data LY (same, last year), Data Items (Store, Order type, Item group, Item, Qty, Net sales).')));
         const c = S.compute(ds);
-        const tabs = ['Overview', 'Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Uploads'];
+        const tabs = ['Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Uploads'];
         const st = h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t)));
         const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, Uploads: uploads }[sub](ds, c);
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Report ${ds.start} → ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), st, v);
@@ -172,7 +172,7 @@
           { k: 'lyDay', label: 'LY date', l: 1 }, { k: 'lySales', label: 'LY sales', fmt: num }, { k: 'lyBills', label: 'LY transactions', fmt: num }, { k: 'yoy', label: 'Sales vs LY', fmt: (v) => delta(v) }, { k: 'trafficYoy', label: 'Traffic vs LY', fmt: (v) => delta(v) }, { k: 'lyAvg', label: 'LY avg check', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'avgYoy', label: 'Avg check vs LY', fmt: (v) => delta(v) }];
         const k0 = c.k.hasLy;
         const rows = c.days.map((d) => ({ ...d, lyDay: d.ly ? d.ly.day : null, lySales: d.ly ? d.ly.sales : null, lyBills: d.ly ? d.ly.bills : null }));
-        const el = h('div', {}, k0 ? compareCard(c) : null, h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily net sales vs last year', 'c1'), chartCard('Daily transactions vs last year', 'c4')), h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily average check vs last year', 'c5'), chartCard('Average sales by weekday vs last year', 'c6')), LM.table(cols, rows, { sort: 'day', dir: 1 }));
+        const el = h('div', {}, h('div', { class: 'grid two', style: 'margin-bottom:0;align-items:start' }, k0 ? compareCard(c) : null, storeAvgCard(c)), weekdayStoreCard(c), h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily net sales vs last year', 'c1'), chartCard('Daily transactions vs last year', 'c4')), h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Daily average check vs last year', 'c5'), chartCard('Average sales by weekday vs last year', 'c6')), LM.table(cols, rows, { sort: 'day', dir: 1 }));
         setTimeout(() => { dailyChart(el.querySelector('#c1'), c); dailyMetric(el.querySelector('#c4'), c, 'bills', 'lyBills', 'Transactions'); dailyMetric(el.querySelector('#c5'), c, 'avg', 'lyAvg', 'Average check'); weekdayChart(el.querySelector('#c6'), c); }); return el;
       }
 

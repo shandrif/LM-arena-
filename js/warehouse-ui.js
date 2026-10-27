@@ -17,7 +17,7 @@
   LM.depts.warehouse = {
     id: 'warehouse', label: 'Warehouse',
     async mount(panel) {
-      let sets = [], cur = null, sub = 'Overview', mugSec = 'All', mugQ = '', invQ = '';
+      let sets = [], cur = null, sub = 'Scorecard', mugSec = 'All', mugQ = '', invQ = '';
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'warehouse').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
@@ -43,7 +43,7 @@
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No warehouse report uploaded yet'), h('p', { class: 'sub' }, 'Drop the Weekly Warehouse Report workbook (.xlsx). Every sheet (KPIs, stock value, dead stock, mugs, capacity, shipments, B2B, inventory …) is recognised automatically.')));
-        const tabs = ['Overview', 'Scorecard', 'Stock & cost', 'Dead stock', 'Mugs', 'Capacity & flow', 'Shipments', 'B2B', 'Inventory', 'Uploads'];
+        const tabs = ['Scorecard', 'Stock & cost', 'Dead stock', 'Mugs', 'Capacity & flow', 'Shipments', 'B2B', 'Inventory', 'Uploads'];
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Report ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))),
           { Overview: overview, Scorecard: scorecard, 'Stock & cost': stockCost, 'Dead stock': dead, Mugs: mugs, 'Capacity & flow': capFlow, Shipments: shipments, B2B: b2b, Inventory: inventory, Uploads: uploads }[sub](ds));
       }

@@ -22,7 +22,7 @@
   LM.depts.bakery = {
     id: 'bakery', label: 'Bakery factory',
     async mount(panel) {
-      let sets = [], sub = 'Overview', factoryIx = 0, projIx = 0, mFilter = { st: 'All', dept: 'All', q: '' }, batchEnd = null;
+      let sets = [], sub = 'Production', factoryIx = 0, projIx = 0, mFilter = { st: 'All', dept: 'All', q: '' }, batchEnd = null;
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'bakery').sort((a, b) => (a.end < b.end ? 1 : -1)); draw(); };
       const kindOf = (d) => d.type.replace('bakery-', ''); const latest = (k) => sets.find((d) => kindOf(d) === k) || null;
 
@@ -39,12 +39,12 @@
             if (old) { await LM.db.put('history', { ...old, id: LM.uid(), replacedAt: new Date().toISOString() }); await LM.db.del('datasets', old.id); }
             await LM.db.put('datasets', { id: LM.uid(), dept: 'bakery', type: d.type, start: d.start, end: d.end, fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), data: d.data });
             if (res.kind === 'machines') await LM.db.put('templates', { ...tpl, dept: 'bakery', knownRfq: [...new Set([...(tpl.knownRfq || []), ...d.data.rows.map((x) => x.rfq).filter(Boolean)])] });
-            batchEnd = d.end; sub = res.kind === 'machines' ? 'Machine purchases' : res.kind === 'report' ? 'Overview' : 'Risks & food safety'; LM.toast(`${KIND_LABEL[res.kind]} as of ${d.end} processed`); await reload(); resolve(); } }; };
+            batchEnd = d.end; sub = res.kind === 'machines' ? 'Machine purchases' : res.kind === 'report' ? 'Production' : 'Risks & food safety'; LM.toast(`${KIND_LABEL[res.kind]} as of ${d.end} processed`); await reload(); resolve(); } }; };
         const dlg = LM.review(info());
       }); }
 
       const body = h('div');
-      const tabsAll = ['Overview', 'Production', 'Projects', 'New products', 'Machine purchases', 'Risks & food safety', 'Uploads'];
+      const tabsAll = ['Production', 'Projects', 'New products', 'Machine purchases', 'Risks & food safety', 'Uploads'];
       function draw() {
         LM.killCharts();
         panel.replaceChildren(h('div', { class: 'head' }, h('h2', {}, 'Bakery factory'), h('span', { class: 'sub' }, 'Upload the factory report, machine purchase plan, risk assessments and food safety issues, together or one by one.'), h('div', { class: 'spacer' }), LM.filePicker(uploadMany, 'Upload bakery files', true, '.xlsx,.xls,.ods,.pptx')), body);

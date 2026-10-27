@@ -12,7 +12,7 @@
   const statusPill = (s) => (s === 'Operating' ? pill(s, 'new') : /not/i.test(s) || s === 'Unknown' ? pill(s, '', 'background:var(--warn-bg);color:var(--warn)') : pill(s, ''));
   const bar = (el, items, color, horiz, fmt) => LM.chart(el, { type: 'bar', data: { labels: items.map((x) => x[0]), datasets: [{ data: items.map((x) => x[1]), backgroundColor: color || LM.css('--accent') }] }, options: { indexAxis: horiz ? 'y' : 'x', plugins: { legend: { display: false } }, scales: { [horiz ? 'x' : 'y']: { ticks: { precision: 0, callback: fmt ? (v) => fmt(v) : undefined } } } } });
 
-  const state = { sub: 'Overview', city: 'All', status: 'All', q: '' };
+  const state = { sub: 'Contracts', city: 'All', status: 'All', q: '' };
 
   function rowObjs(ds) { return ds.data.rows.map((x) => ({ ...x })); }
   const contractCols = [{ k: 'no', label: '#' }, { k: 'name', label: 'Branch', l: 1, cls: 'wrap', fmt: (v) => ar(v) }, { k: 'cityEn', label: 'City', l: 1 }, { k: 'district', label: 'District', l: 1, fmt: (v) => ar(v) }, { k: 'status', label: 'Status', l: 1, fmt: (v) => statusPill(v) }, { k: 'type', label: 'Type', l: 1 }, { k: 'area', label: 'Area m²', fmt: (v) => (v == null ? '–' : num(v)) }, { k: 'rentRate', label: 'Annual rent', fmt: sar }, { k: 'ppmCalc', label: 'Rent / m²', fmt: sar }, { k: 'start', label: 'Start', l: 1, fmt: dstr }, { k: 'term', label: 'Term (yrs)' }, { k: 'end', label: 'End', l: 1, fmt: (v, r) => (v ? dstr(v) : r.endRaw ? ar(r.endRaw) : '–') }, { k: 'licence', label: 'Licence', l: 1 }, { k: 'sign', label: 'Signboard', l: 1 }, { k: 'handover', label: 'Handover', l: 1 }];
@@ -41,7 +41,7 @@
     const draw = () => {
       LM.killCharts(); ctx.cur = cur; const ds = sets.find((s) => s.id === cur); const c = RE.compute(ds);
       ds.data.rows.forEach((x) => { x.ppmCalc = x.area && x.rent1 ? x.rent1 / x.area : null; });
-      const tabs = ['Overview', 'Contracts', 'Expiry & renewals', 'Pipeline', 'Rent', 'Network summary', 'Uploads'];
+      const tabs = ['Contracts', 'Expiry & renewals', 'Pipeline', 'Rent', 'Network summary', 'Uploads'];
       const sel = sets.length > 1 ? h('select', { class: 'sel', onchange: (e) => { cur = e.target.value; draw(); } }, sets.map((s) => h('option', { value: s.id, selected: s.id === cur }, 'Register of ' + s.end.slice(0, 7)))) : null;
       body.replaceChildren(h('div', { class: 'tools' }, sel, h('span', { class: 'sub' }, `${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')} · landlord / contact details are not stored`)),
         h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === state.sub ? 'on' : '', onclick: () => { state.sub = t; draw(); } }, t))),

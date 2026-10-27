@@ -99,3 +99,43 @@ label.ck { display: flex; gap: 6px; align-items: center; }
 .snap .btn.danger { display: none; }
 .card > table.t { display: block; max-width: 100%; overflow-x: auto; }
 @media (max-width: 600px) { .brand { width: 100%; } main { padding-left: 12px; padding-right: 12px; } }
+
+/* ---- tab groups: a thin divider after the last tab of each topic group ---- */
+nav.tabs button.grp { margin-right: 12px; position: relative; }
+nav.tabs button.grp::after { content: ''; position: absolute; right: -8px; top: 12px; bottom: 12px; width: 1px; background: var(--line); }
+
+/* ---- rich text editor (Discussion points) ---- */
+.rte { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.rte-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--line); background: var(--bg, transparent); border-radius: 10px 10px 0 0; }
+.rte-btn { min-width: 28px; height: 28px; padding: 0 6px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--ink); cursor: pointer; font: inherit; font-size: 13px; position: relative; }
+.rte-btn:hover { background: var(--line); }
+.rte-btn.on { background: var(--accent); color: #fff; }
+.rte-sel { height: 28px; max-width: 120px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
+.rte-sep { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+.rte-colorwrap { overflow: hidden; }
+.rte-color { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; border: 0; padding: 0; }
+.rte-link { gap: 6px; align-items: center; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.rte-linkin { flex: 1; min-width: 0; padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--ink); font: inherit; }
+.rte-body { min-height: 110px; max-height: 50vh; overflow: auto; padding: 10px 12px; outline: none; word-break: break-word; line-height: 1.5; resize: vertical; }
+.rte-body.is-empty::before { content: attr(data-placeholder); color: var(--muted); pointer-events: none; float: left; height: 0; }
+.rt, .rte-body { line-height: 1.5; }
+.rt h1, .rte-body h1 { font-size: 22px; margin: 6px 0; } .rt h2, .rte-body h2 { font-size: 18px; margin: 6px 0; } .rt h3, .rte-body h3 { font-size: 15px; margin: 6px 0; }
+.rt ul, .rt ol, .rte-body ul, .rte-body ol { margin: 4px 0; padding-inline-start: 24px; }
+.rt blockquote, .rte-body blockquote { margin: 4px 0; padding-inline-start: 12px; border-inline-start: 3px solid var(--line); }
+.rt a, .rte-body a { color: var(--accent); text-decoration: underline; }
+.rt hr, .rte-body hr { border: 0; border-top: 1px solid var(--line); margin: 8px 0; }
+.rt { word-break: break-word; }
+
+/* ---- hide / show for every block ---- */
+.blk { position: relative; }
+.blk-pill { position: absolute; top: -10px; right: 12px; z-index: 3; height: 20px; padding: 0 9px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--muted); font: inherit; font-size: 11px; line-height: 18px; cursor: pointer; opacity: .55; }
+.blk:hover > .blk-pill, .blk-pill:focus-visible, .blk-off > .blk-pill { opacity: 1; }
+.blk-pill:hover { color: var(--ink); border-color: var(--muted); }
+.blk-off > *:not(.blk-pill) { display: none !important; }
+.blk-off::before { content: attr(data-blk-title) '  ·  hidden'; display: block; font-size: 13px; color: var(--muted); font-weight: 600; padding: 2px 0; }
+.blk-off.kpis { display: block; }
+.blk-bar { display: flex; align-items: center; gap: 8px; margin: 4px 0 4px; }
+.blk-bar .blk-pill { position: static; opacity: .8; }
+.blk-bar .blk-label { font-size: 13px; color: var(--muted); font-weight: 600; }
+.blk-hidden { display: none !important; }
+.blk-all { display: flex; align-items: center; gap: 10px; margin: 0 0 10px; padding: 6px 12px; border: 1px dashed var(--line); border-radius: 10px; font-size: 13px; color: var(--muted); }
