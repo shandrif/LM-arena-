@@ -100,7 +100,7 @@ async function ask(req, env) {
   const base = env.GEMINI_BASE || 'https://generativelanguage.googleapis.com';
   const body = { systemInstruction: { parts: [{ text: String(b.system || '').slice(0, 12000) }] }, contents: b.contents,
     tools: [{ functionDeclarations: Array.isArray(b.tools) ? b.tools.slice(0, 12) : [] }], toolConfig: { functionCallingConfig: { mode: b.noTools ? 'NONE' : 'AUTO' } },
-    generationConfig: { temperature: 0, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 1024 } } };
+    generationConfig: { temperature: 0, maxOutputTokens: 4096, thinkingConfig: { thinkingBudget: 256 } } };
   /* Gemini sometimes answers "overloaded" (503): try again, then the next model, before giving up */
   const tries = [first, 'gemini-flash-lite-latest', first, 'gemini-flash-lite-latest']; // a busy or over-quota model hands over to the next one at once
   let r, j, last = ''; const t0 = Date.now(); const log = [];

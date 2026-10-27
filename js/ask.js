@@ -15,13 +15,28 @@
 
   let reports = [];
   async function load() {
-    const all = (await LM.db.all('datasets')).filter((r) => r && r.dept);
-    all.sort((a, b) => (a.dept + (a.type || '') + (a.start || '')).localeCompare(b.dept + (b.type || '') + (b.start || '')));
+    const sel = LM.week && LM.week.selected; const REF = LM.week && LM.week.REF;
+    const raw = (await (LM.dbRaw || LM.db).all('datasets')).filter((r) => r && r.dept);
+    const wk = (r) => r.week || REF;
+    const all = raw.filter((r) => wk(r) === sel || wk(r) === REF || r.week); // the open week, the reference files, and the other weeks already loaded
+    all.sort((a, b) => ((wk(a) === sel ? '0' : wk(a) === REF ? '1' : '2' + String(9999 - (+String(wk(a)).replace(/-/g, '') % 100000))) + a.dept + (a.type || '') + (a.start || '')).localeCompare((wk(b) === sel ? '0' : wk(b) === REF ? '1' : '2' + String(9999 - (+String(wk(b)).replace(/-/g, '') % 100000))) + b.dept + (b.type || '') + (b.start || '')));
     reports = all.map((r, i) => {
       const body = {}; for (const k of Object.keys(r)) if (!SKIP.has(k) && !['uploadedAt', 'week'].includes(k)) body[k] = r[k];
-      return { ref: 'r' + (i + 1), rec: r, body };
+      const w = wk(r); return { ref: 'r' + (i + 1), rec: r, body, week: w === REF ? 'reference' : w, open: w === sel || w === REF };
     });
   }
+  /* the stored data uses short column names; this says what they mean (so "contact ratio" etc. can be found) */
+  const GLOSS = {
+    'quality/trend': { 'data.weeks': { no: 'week number of the year', label: 'week dates', qC: 'Quality complaints (count)', qR: 'Quality CONTACT RATIO = quality complaints per 100,000 customers', oC: 'Operations complaints (count)', oR: 'Ops/Operations CONTACT RATIO = ops complaints per 100,000 customers', cust: 'customers served that week', start: 'week start', end: 'week end (Friday)' } },
+    'roasting/roasting': { 'data.weekly': { no: 'week number', util: 'capacity utilisation %', tons: 'tons roasted', rej: 'rejection %', cap: 'capacity (tons)', end: 'week end date' }, 'data.soh.roast': { soh: 'stock on hand', doh: 'days on hand', target: 'target stock' }, 'data.soh.green': { totalDoh: 'total days on hand' } },
+    'manualpunch/manualpunch': { 'data.stores': { mtd: 'month-to-date manual punch % of sales', p: 'manual punch % by period' }, 'data.periods': { manual: 'manual punch value', total: 'total sales', pct: 'manual punch %' } },
+    'warehouse/warehouse': { 'data.summary.monthly': { y: 'year', m: 'month', stock: 'closing stock value', sales: 'sales', log: 'logistics cost', lr: 'logistics cost as % of sales', sr: 'stock as % of sales' }, 'data.logistics.cost': { m: 'month', sales: 'sales', log: 'logistics cost', pct: 'logistics cost % of sales' }, 'data.logistics.budget': { m: 'month', old: 'old budget', nw: 'new budget', act: 'actual', var: 'variance', util: 'budget utilisation %' }, 'data.logistics.allCost': { ship: 'shipping cost', tot: 'total cost' }, 'data.logistics.turnover': { beg: 'opening stock', pur: 'purchases', clo: 'closing stock', cogs: 'cost of goods sold', avg: 'average stock', t: 'turnover' }, 'data.flow.rows': { wh: 'warehouse', served: 'branches served', daily: 'daily deliveries', oc: 'out cartons', ic: 'in cartons', cp: 'cartons %', nc: 'net cartons', op: 'out pallets', ip: 'in pallets', np: 'net pallets' }, 'data.capacity.rows': { wh: 'warehouse', cap: 'capacity', act: 'actual use', u: 'utilisation %', gap: 'free space / gap' }, 'data.flow.detail': { cph: 'cartons per hour', hrs: 'hours', totalHrs: 'total hours' }, 'data.dailyShip.rows': { on: 'on-time orders', off: 'late/off-schedule orders' }, 'data.scorecard.kpis': { w: 'weight', pct: '% achieved', avg: 'average', dir: 'direction (higher or lower is better)' } },
+    'nep/nep': { 'data.plan.months': { y: 'year', m: 'month', nw: 'new openings (NSO)', ex: 'existing stores', op: 'opening stores total' } },
+    'shipment/shipment': { 'data.rows': { cntr: 'container', bl: 'bill of lading', etd: 'estimated departure', eta: 'estimated arrival', pod: 'port of discharge' } },
+    'procurement/po': { 'data.rows': { order: 'PO number', req: 'requisition (PR) number' } },
+    'procurement/pr': { 'data.rows': { req: 'PR number', uom: 'unit of measure' } },
+  };
+  const glossFor = (rep, path) => { const g = GLOSS[rep.rec.dept + '/' + (rep.rec.type || rep.rec.dept)]; return (g && g[path]) || null; };
   /* every list of rows inside a report, found by walking the stored data */
   function tablesOf(body) {
     const out = [];
@@ -57,13 +72,14 @@
   const r4 = (v) => (typeof v === 'number' ? Math.round(v * 10000) / 10000 : v);
 
   const TOOLS = {
-    list_reports() {
-      return { week: LM.week && LM.week.selected ? LM.week.label(LM.week.selected) : null, reports: reports.map((r) => ({ report: r.ref, tab: r.rec.dept, kind: r.rec.type || null, file: r.rec.fileName, from: r.rec.start || null, to: r.rec.end || null,
-        tables: tablesOf(r.body).map((t) => ({ table: t.path, rows: t.rows.length, columns: colsOf(t.rows).slice(0, 30) })) })) };
+    list_reports({ week } = {}) {
+      const pick = reports.filter((r) => (week ? r.week === week : r.open));
+      return { week: LM.week && LM.week.selected ? LM.week.label(LM.week.selected) : null, other_weeks_available: [...new Set(reports.filter((r) => !r.open).map((r) => r.week))], reports: pick.map((r) => ({ report: r.ref, week: r.week, tab: r.rec.dept, kind: r.rec.type || null, file: r.rec.fileName, from: r.rec.start || null, to: r.rec.end || null,
+        tables: tablesOf(r.body).map((t) => { const g = glossFor(r, t.path); return { table: t.path, rows: t.rows.length, columns: colsOf(t.rows).slice(0, 30).map((c) => (g && g[c] ? `${c} = ${g[c]}` : c)) }; }) })) };
     },
     describe_table({ report, table }) {
       const t = getTable(report, table); if (t.err) return { error: t.err };
-      const cols = colsOf(t.rows); return { rows: t.rows.length, columns: cols, sample: t.rows.slice(0, 4).map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, short(v, 60)]))) };
+      const cols = colsOf(t.rows); const gg = glossFor(findReport(report), table); return { rows: t.rows.length, columns: cols, meanings: gg || undefined, sample: t.rows.slice(0, 4).map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, short(v, 60)]))) };
     },
     query_table({ report, table, where, select, group_by, metrics, order_by, descending, limit }) {
       const t = getTable(report, table); if (t.err) return { error: t.err };
@@ -104,6 +120,19 @@
       for (const r of reports) if (!report || r.ref === String(report).toLowerCase()) walk(r.ref, r.body, '');
       return { matches_shown: hits.length, more_not_shown: Math.max(0, total - hits.length), hits };
     },
+    async read_dashboard({ tab }) {
+      const id = String(tab || '').toLowerCase(); const btn = document.querySelector(`nav.tabs button[data-id="${id}"]`); if (!btn) return { error: 'Unknown tab. Tabs: ' + [...document.querySelectorAll('nav.tabs button')].map((b) => b.dataset.id).join(', ') };
+      const main = () => document.querySelector('main'); const wait = (ms) => new Promise((ok) => setTimeout(ok, ms));
+      const settle = async () => { let last = '', n = 0; for (let i = 0; i < 14; i++) { await wait(260); const t = main().innerText; if (t === last && t.length > 20) { if (++n >= 1) break; } else n = 0; last = t; } };
+      const was = (location.hash || '#sales').slice(1); const subs = () => [...main().querySelectorAll('.subtabs button')]; const wasSub = subs().findIndex((b) => b.classList.contains('on'));
+      if (was !== id) { btn.click(); } await settle();
+      const out = []; const n = subs().length; const cut = (t) => t.replace(/\n{3,}/g, '\n\n').trim().slice(0, 7000);
+      if (!n) out.push({ section: id, text: cut(main().innerText) });
+      else for (let i = 0; i < Math.min(n, 9); i++) { const b = subs()[i]; if (!b) break; const name = b.textContent.trim(); if (!b.classList.contains('on')) { b.click(); await settle(); } out.push({ section: name, text: cut(main().innerText) }); }
+      if (was !== id) { document.querySelector(`nav.tabs button[data-id="${was}"]`).click(); await settle(); if (wasSub >= 0 && subs()[wasSub] && !subs()[wasSub].classList.contains('on')) subs()[wasSub].click(); }
+      else if (wasSub >= 0 && subs()[wasSub] && !subs()[wasSub].classList.contains('on')) subs()[wasSub].click();
+      return { tab: id, note: 'Text exactly as the dashboard shows it for the week that is open (what the user sees). Numbers may be rounded.', sections: out };
+    },
     screen_text() {
       const m = document.querySelector('main'); const t = m ? m.innerText.replace(/\n{3,}/g, '\n\n').trim() : '';
       return { tab: (location.hash || '').slice(1) || 'sales', note: 'Text exactly as shown on the dashboard screen right now (values may be rounded or formatted).', text: t.length > 14000 ? t.slice(0, 14000) + '\n…(cut)' : t };
@@ -123,11 +152,14 @@
       order_by: S('column or metric name to sort by'), descending: { type: 'boolean' }, limit: { type: 'integer', description: 'max rows, default 50' } }, required: ['report', 'table'] } },
     { name: 'get_value', description: 'Reads one value or block by path, such as data.kpis or lines[3]. Use it for text slides, notes, single figures.', parameters: { type: 'object', properties: { report: S('report id'), path: S('path inside the report; empty for the whole report') }, required: ['report'] } },
     { name: 'search', description: 'Finds where a word or number appears anywhere in the open week (store names, item names, people, statuses). Use it to learn the exact spelling of a store/item before filtering.', parameters: { type: 'object', properties: { text: S('text to find'), report: S('optional: only this report') }, required: ['text'] } },
+    { name: 'read_dashboard', description: 'Reads what the dashboard itself shows on one tab (all its sub-tabs): the KPI cards and tables with their proper labels, exactly as the user sees them. Use this FIRST for KPIs, ratios, scores, status and anything defined by the dashboard; use query_table when you need exact raw rows or your own filters.', parameters: { type: 'object', properties: { tab: S('tab id: sales, manualpunch, wastage, international, training, quality, procurement, warehouse, shipment, bakery, roasting, nep, others (real estate), discussion') }, required: ['tab'] } },
     { name: 'screen_text', description: 'Returns the text currently visible on the dashboard screen. Use when the user says "this screen/tab/chart" or asks what a number on screen means.', parameters: { type: 'object', properties: {} } },
   ];
 
   const GUIDE = `You are the built-in assistant of Half Million Coffee's Weekly Department Dashboard. Answer only from the saved reports of the week that is open.
 RULES
+- For KPIs, ratios, scores or statuses that the dashboard calculates (for example contact ratio, store average, OTIF, utilisation), call read_dashboard for the right tab FIRST: it shows the figures with their proper labels, as the user sees them. Use query_table for raw rows and your own filters. Column names in the raw data are often short (qR, oC, lr); the table description explains them.
+- 'Last week', 'previous weeks': the other saved weeks are listed below; the open week is the default. Weekly trend tables inside one report (for example the quality weekly trend) hold many weeks in one file.
 - The list of saved reports and their tables is given below, so you do not need list_reports. Ask for several lookups in one step when they are independent. Prefer one query_table with group_by over many separate queries.
 - For every figure call a tool (query_table for sums, averages, rankings; search to find exact spellings; get_value for text). Never calculate by hand and never guess. If something is not in the reports, say so plainly and name what is there.
 - Store and item names may be bilingual (English / Arabic). Use search first when a name is uncertain, then filter with the exact spelling. If a name could mean several stores, list them and ask.
@@ -142,7 +174,11 @@ Reports shown in every week (year calendar, yearly quality trend) are reference 
 
   /* a short map of the open week, sent with every step so Gemini does not spend steps discovering it */
   function indexText() {
-    const L = TOOLS.list_reports(); return 'REPORTS SAVED IN THE OPEN WEEK (' + (L.week || '') + '): report id | tab | kind | file | period | tables as name(rows: columns)\n' + L.reports.map((r) => [r.report, r.tab, r.kind || '-', r.file, (r.from || '') + '..' + (r.to || ''), r.tables.map((t) => `${t.table}(${t.rows}: ${t.columns.slice(0, 14).join(',')})`).join('; ')].join(' | ')).join('\n').slice(0, 24000);
+    const L = TOOLS.list_reports(); const wl = LM.week ? LM.week.label : (x) => x;
+    const line = (r) => [r.report, r.tab, r.kind || '-', r.file, (r.from || '') + '..' + (r.to || ''), r.tables.map((t) => `${t.table}(${t.rows}: ${t.columns.slice(0, 12).map((c) => c.split(' = ')[0]).join(',')})`).join('; ')].join(' | ');
+    const others = reports.filter((r) => !r.open); const byWeek = {}; others.forEach((r) => { (byWeek[r.week] = byWeek[r.week] || []).push(`${r.ref}:${r.rec.dept}${r.rec.type ? '/' + r.rec.type : ''}`); });
+    return 'REPORTS SAVED IN THE OPEN WEEK (' + (L.week || '') + ') AND REFERENCE FILES: id | tab | kind | file | period | tables as name(rows: columns)\n' + L.reports.map(line).join('\n').slice(0, 16000)
+      + (others.length ? '\nOTHER WEEKS ALSO AVAILABLE (use describe_table / query_table with these ids, or list_reports with week=YYYY-MM-DD):\n' + Object.keys(byWeek).sort().reverse().map((w) => `${w} (${wl(w)}): ${byWeek[w].join(', ')}`).join('\n').slice(0, 4000) : '');
   }
 
   /* ---------- the conversation ---------- */
@@ -154,7 +190,7 @@ Reports shown in every week (year calendar, yearly quality trend) are reference 
     if (!r.ok) { const e = new Error(j.error || 'The assistant is not available right now.'); e.code = j.code; if (j.detail) console.warn('assistant:', j.detail); throw e; }
     return j;
   }
-  const FRIENDLY = { list_reports: 'Looking at the saved reports', describe_table: 'Checking a table', query_table: 'Calculating from the table', get_value: 'Reading the report', search: 'Searching the reports', screen_text: 'Reading this screen' };
+  const FRIENDLY = { list_reports: 'Looking at the saved reports', describe_table: 'Checking a table', query_table: 'Calculating from the table', get_value: 'Reading the report', search: 'Searching the reports', screen_text: 'Reading this screen', read_dashboard: 'Reading the dashboard tab' };
 
   async function ask(question, onStatus) {
     await load(); const used = []; const turn = history.length;
