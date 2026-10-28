@@ -68,3 +68,7 @@ The chat button on the website sends each step through the Worker to Google Gemi
 3. Optional variables: `GEMINI_MODEL` (default `gemini-flash-latest`; use `gemini-pro-latest` for harder questions), `ASK_DAILY` (Gemini calls per day for the whole team, default 800).
 
 Without the key, the chat opens and says the assistant is not switched on yet; nothing else is affected. Lookups run in the browser on the open week's reports, so answers never mix weeks.
+
+## Updating the live site later (new session)
+1. Put `CLOUDFLARE_API_TOKEN` in the environment settings (token needs Workers Scripts: Edit; for the domain also Workers Routes and DNS: Edit) and start a new session.
+2. Run `bash tools/deploy-cloudflare.sh`. Without `users.private` it publishes only the code and leaves the stored password and secrets untouched. To change the password, create `users.private` (`team|NEW-PASSWORD|admin`) and run it again.

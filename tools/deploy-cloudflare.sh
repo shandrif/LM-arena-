@@ -6,9 +6,10 @@
 set -euo pipefail
 : "${CLOUDFLARE_API_TOKEN:?set CLOUDFLARE_API_TOKEN}"; : "${CLOUDFLARE_ACCOUNT_ID:?set CLOUDFLARE_ACCOUNT_ID}"
 cd "$(dirname "$0")/.."
-[ -s users.private ] || { echo "users.private is missing or empty (one account per line: email|password|admin or view)"; exit 1; }
 node tools/build.js
 npx --yes wrangler@4 deploy
+# without users.private (for example in a fresh session) only the code is published; the password and keys already stored in Cloudflare stay as they are
+if [ ! -s users.private ]; then echo "Code deployed. users.private not found, so the stored password and secrets were left untouched."; exit 0; fi
 # secrets: the accounts and a key that signs the session cookies (kept in .session-secret so that deploys do not sign everybody out)
 [ -s .session-secret ] || node -e "console.log(require('crypto').randomBytes(32).toString('hex'))" > .session-secret
 node -e "const fs=require('fs');fs.writeFileSync('.secrets.tmp.json',JSON.stringify({USERS:fs.readFileSync('users.private','utf8').trim(),SESSION_SECRET:fs.readFileSync('.session-secret','utf8').trim()}))"
