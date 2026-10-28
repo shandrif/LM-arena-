@@ -1,0 +1,665 @@
+[
+ {
+  "id": "cleaner",
+  "name": "Cleaner",
+  "sections": [
+   {
+    "name": "DINE -IN-AREA",
+    "tasks": [
+     "Wipe down tables and chairs with disinfectant",
+     "Sanitize menus or replace disposables",
+     "Clean and refill condiment holders",
+     "Sweep and mop floors",
+     "Clean glass doors and interior windows",
+     "Dust ledges, light fixtures, wall decor",
+     "Empty bins and replace liners",
+     "Sanitize high touch points",
+     "Restock napkins, cutlery, takeaway items"
+    ]
+   },
+   {
+    "name": "BAR AREA",
+    "tasks": [
+     "Wipe and disinfect bar top and stools",
+     "Clean and sanitize glassware and bar tools",
+     "Clean drip trays and bar mats",
+     "Chiller and Deep Freezer",
+     "Disinfect POS terminals, taps, espresso machine handles",
+     "Sweep and mop floors behind the bar",
+     "Restock garnishes, napkins, stirrers, straws",
+     "Empty trash and recycling bins, replace liners",
+     "Clean sinks, ice wells, and shelves"
+    ]
+   },
+   {
+    "name": "RESTROOMS",
+    "tasks": [
+     "Clean and sanitize toilets, urinals, and sinks",
+     "Refill toilet paper, hand soap, and paper towels",
+     "Clean mirrors and counters",
+     "Mop floors with disinfectant",
+     "Empty sanitary and general waste bins",
+     "Sanitize door handles, light switches, and dispensers",
+     "Check for plumbing issues or foul odors"
+    ]
+   },
+   {
+    "name": "BACK AREA",
+    "tasks": [
+     "Wipe and sanitize all prep surfaces and counters",
+     "Wash all utensils, boards, and small equipment",
+     "Sweep and mop kitchen floors",
+     "Clean coffee machines and blenders",
+     "Wipe down fridge and freezer doors",
+     "Take out trash and replace bin liners",
+     "Check and organize stock areas briefly",
+     "Outside Menu Screen",
+     "Sanitize handles (fridge, cabinet, door)"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "cashier",
+  "name": "Cashier",
+  "sections": [
+   {
+    "name": "TAKING ORDER STEPS",
+    "tasks": [
+     "THE EMPLOYEE IS WELCOMING THE CUSTOMER WITH THE APPROVED PHRASE (حياك الله في هاف مليون كيف اقدر اخدمك)",
+     "THE EMPLOYEE IS TAKING THE ORDER CORRECTLY AND REPEATING THE ORDER WHILE TAKING IT.",
+     "THE EMPLOYEE IS DOING SUGGESTIVE SELLING AND UPSELLING AND SUGGESTING OUR NEW PRODUCT.",
+     "THE EMPLOYEE IS REPEATING THE ORDER TO THE CUSTOMER AND ANNOUNCING THE TOTAL AMOUNT AND PROCCEDING WITH PAYMENT.",
+     "THE EMPLOYEE HAND OVER THE INVOICE TO THE CUSTOMER AND THANK THEM WITH OUR APPROVED PHRASE (نورت هاف مليون نشوفك على خير)"
+    ]
+   },
+   {
+    "name": "S.W.E.E.T. CULTURE",
+    "tasks": [
+     "THE EMPLOYEE IS SMILING TO THE CUSTOMER AND CREATING A POSITVE ATMOSPHARE.",
+     "THE EMPLOYEE IS WELCOMING EVERY CUSTOMER AND TREATING THEM WITH RECPECT.",
+     "THE EMPLOYEE IS INTRODUCING THE PRODUCTS TO THE CUSTOMER AND TAKING THE TIME TO EXPLAIN THE PRODUCTS TO THEM.",
+     "THE EMPLOYEE IS CREATING A FRIENDLY VIBE AND MAKING RECPECTFUL CONVERSATIONS TO BREAK THE ICE.",
+     "THE EMPLOYEE IS ALWAYS THANKING THE CUSTOMERS AND INVITING THEM TO VISIT AGAIN."
+    ]
+   },
+   {
+    "name": "DISPATCHING",
+    "tasks": [
+     "THE EMPLOYEE IS VERIFYING THE CUSTOMER INVOICE.",
+     "THE EMPLOYEE IS ARRENGAING THE CUSTOMER ORDER BEFORE DISPATCHING IT.",
+     "THE EMPLOYEE DIRECTING THE CUSTOMER TO THE CONDIMENTS."
+    ]
+   },
+   {
+    "name": "PRODUCT AWARENESS",
+    "tasks": [
+     "THE EMPLOYEE IS AWARE ABOUT ALL MENU ITEMS",
+     "THE EMPLOYEE IS FAMILIAR WITH ALL THE PRODUCT ALLERGIES",
+     "THE EMPLOYEE KNOWS THE PRICES OF HALF MILLION PRODUCTS.",
+     "THE EMPLOYEE IS AWARE OF THE PRICES OF ANY ADDITIONALS ON PRODUCTS."
+    ]
+   },
+   {
+    "name": "HALF MILLION BRANDED MUGS",
+    "tasks": [
+     "TEAM KNOWS ALL RELATED INFORMATION ON HALF MILLION MUGS",
+     "THE EMPLOYEE IS AWARE HOW TO CHECK ANY HALF MILLION MUG.",
+     "THE EMPLOYEE IS FAMILIAR WITH THE POLICY OF THE FREE DRINK INSIDE THE MUG AND IT CRITIRAS."
+    ]
+   },
+   {
+    "name": "TEAM WORK AND COMMUNICATION SKILLS",
+    "tasks": [
+     "THE EMPLOYEE IS MAKING CLEAR COMMUNCATION AMOUNG HIS STORE TEAM TO ENSURE A SMOOTH OPERATION.",
+     "THE EMPLOYEE IS WORKING WITH HIS TEAM AND ALWAYS READY TO HELP ALWAYS.",
+     "THE EMPLOYEE IS DOING HIS SECONDARY TASK AND HELPING HIS TEAM IN PREPEARING PRODUCTS (SANDWICHES, SWEET, COLD DRINKS WITHOUT ESSPRESO)."
+    ]
+   },
+   {
+    "name": "POLICIES",
+    "tasks": [
+     "THE EMPLOYEE IS APPLYING HALF MILLION DRIP COFFEE REFILL POLICY",
+     "THE EMPLOYEE IS FAMILIAR WITH THE STAFF USAGE DISCOUNT.",
+     "THE EMPLOYEE IS FAMILIAR WITH THE VACATION AND SICKLEAVES POLICIES.",
+     "THE EMPLOYEE IS FAMILIAR OF THE BREAK POLICY.",
+     "THE EMPLOYEE IS FAMILIAR WITH THE DEPLOYMENT POLICIES.",
+     "THE EMPLOYEE IS WORKING THEIR FULL WORKING HOURS AND FOLLOWING THE SCEDUALE.",
+     "THE EMPLOYEE IS FAMILIAR WITH THE COMPANY DRESS CODE POLCY (INCLUDING PPE)"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "beverage",
+  "name": "Beverage",
+  "sections": [
+   {
+    "name": "Hot Drip Coffee",
+    "tasks": [
+     "Start by placing a filter paper on the drip funnel and tare.",
+     "Weigh 70G into 1 liter of Drip Coffee beans into tared stainless cup with the as desired by the business.",
+     "Place the weighed Drip Coffee Beans into the designated grinder for Drip Coffee Beans only.",
+     "Position the stainless cup on the spout of the grinder. Make sure the grinder is set to Drip coffee settings.",
+     "Start grinding the drip coffee beans and when grinding finishes, remove the stainless cup. Never pre-grind coffee.",
+     "Brewing: Position the drip funnel with coffee grind below the spray head.",
+     "Brewing: Press the desired button for brewing according to grinded amount of beans.",
+     "Serving: When brewing finishes make sure to have it labeled with a holding time 30 minutes after brewing.",
+     "Serving: Get desired serving cup.",
+     "Serving: Dispense brewed coffee 340g for 12oz and 450g for 16oz into the cup.",
+     "Serving: Serve coffee with smile and advise customers to condiments."
+    ]
+   },
+   {
+    "name": "Iced Drip Coffee",
+    "tasks": [
+     "Start by placing a filter paper on the drip funnel and tare.",
+     "Weigh 280G into 3 liter of Drip Coffee beans into tared stainless cup with the as desired by the business.",
+     "Place the weighed Drip Coffee Beans into the designated grinder for Drip Coffee Beans only.",
+     "Position the stainless cup on the spout of the grinder. Make sure the grinder is set to Drip coffee settings.",
+     "Start grinding the drip coffee beans and when grinding finishes, remove the stainless cup. Never pre-grind coffee.",
+     "Brewing: Position the drip funnel with coffee grind below the spray head.",
+     "Brewing: Put 900g of cube ice inside the thermal tank.",
+     "Brewing: Press the desired button for brewing according to grinded amount of beans.",
+     "Brewing: Serving",
+     "Brewing: When brewing finishes make sure to have it labeled with a holding time 1 hour after brewing.",
+     "Brewing: Get desired serving cup, 12oz or 16oz.",
+     "Brewing: Dispense brewed coffee 12oz-220g &9pcs ice/16oz-250g & 11pcs ice into the cup."
+    ]
+   },
+   {
+    "name": "Espresso",
+    "tasks": [
+     "Place portafilter on the grinder nozzle to start automatic grinding of coffee beans (18.0g-18.8g).",
+     "Place the portafilter with the coffee grind into the automatic tamper(PUQ PRESS)After tamping, wipe away any excess ground coffee.",
+     "Then fit the group handle containing tamped grind firmly to the grouphead of the espresso machine.",
+     "Place the serving cup under the portafilter and allow the extract to Espresso 34 to 36 Grams into it,Extraction usually takes 20-30 seconds."
+    ]
+   },
+   {
+    "name": "Steaming",
+    "tasks": [
+     "Fully submerge yourpitcher right to the bottom of the spout with cold milk.Fully submerge your thermometer into the milk.",
+     "Turn on your machine's steam function and purge the steam wand.When you're ready to start.",
+     "Turn on your espresso machine and allow it to heat to its normal brewing temperature. Place the steam wand just below the surface of the milk.",
+     "Open the steam valve to full blast.",
+     "Expand the milk 30°C-40°C",
+     "Lower steam wand and heat up to 60°C",
+     "Clean it up the steaming wand when finished.",
+     "Cappuccino: (PUQ PRESS). After tamping,wipe any excess ground coffee (18.0g-18.8g).",
+     "Cappuccino: Insert and gently lock the portafilter into espresso machine group head.Place the desired cup size under the portafilter to start extraction.",
+     "Cappuccino: Pour the for 9oz 160g & for 12oz 200g amount of fresh milk into the pitcher.",
+     "Cappuccino: While extracting the espresso for 9oz 34g-36g & for 12oz 49g-51g, steam the milk up to 60°C.",
+     "Cappuccino: Pour the steamed milk into the cup with espresso on it.",
+     "Cappuccino: Finish with an art. (Total weight: 9oz-194g-196g/12oz-249g-251g)",
+     "Cappuccino: Serve coffee with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Latte",
+    "tasks": [
+     "Place the portafilter with coffee grind into the automatic tamper (PUQ PRESS). After tamping,wipe any excess ground coffee (18.0g-18.8g).",
+     "Insert and gently lock the portafilter into espresso machine group head.Place the desired cup size under the portafilter to start extraction.",
+     "Pour the fpr 9oz 200g & for 12oz 270g amount of fresh milk into the pitcher.",
+     "While extracting the espresso for 9oz 34g-36g & 12oz 49g-51g, steam the milk up to 60°C.",
+     "Pour the steamed milk into the cup with espresso on it.",
+     "Finish with an art. (Total Weight: 9oz-234g-236g/12 oz-319g-321g)",
+     "Serve coffee with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Hot Signature",
+    "tasks": [
+     "Start by placing HM Cup to a weighing scale and tare.",
+     "Pump the correct amount of sweet sauce into the Cup for 9oz 18g & for 12oz 30 g, set aside.",
+     "Make sure to not over portion the sweet sauce.",
+     "Place portafilter on the grinder nozzle to start automatic grinding of coffee beans (18.0g-18.8g)",
+     "Place the portafilter with coffee grind into the automatic tamper (PUQ PRESS).After tamping,wipe away any excess ground coffee.",
+     "Insert and gently lock the portafilter into the espresso machine group head.Place the measurement glass under portafilter to start extraction.",
+     "After espresso extraction,by using milk frother,mixed the sweet sauce and espresso mixture for about 3 seconds.Then set aside.",
+     "Pour the for 9oz 180g &for 12oz 250g amount of fresh milk into the pitcher.",
+     "While extracting the espresso for 9oz 34g-36g & for 12oz 49g-51g, steam the milk up to 60°C.",
+     "When the milk temperature is achieved,turn the steaming knob off,set aside the milk pitcher and quick clean the steaming wand.",
+     "Start pouring the steamed milk into the cup of espresso and sweet sauce mixture on it.",
+     "Finish with art. (Total Weight: 9oz- 232g-235g/12oz-329g-332g)",
+     "Serve coffee with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Cortado",
+    "tasks": [
+     "Place portafilter on the grinder nozzle to start automatic grinding of coffee beans (18.0g-18.8g).",
+     "Place the portafilter with coffee grind into the automatic tamper (PUQ PRESS).After tamping,wipe away any excess ground coffee.",
+     "Insert and gently lock the portafilter into the espresso machine group head.Place the 4oz cup size under portafilter to start extraction.",
+     "Pour the 55g amount of fresh milk into the pitcher.",
+     "While extracting the espresso 34g-36g, steam the milk up to 60°C",
+     "Pour the steamed milk into the cup with espresso on it.",
+     "Finish with art. (Total Weight: 4oz-89g-91g)",
+     "Serve coffee with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Flat White",
+    "tasks": [
+     "Place portafilter on the grinder nozzle to start automatic grinding of coffee beans (18.0g-18.8g).",
+     "Place the portafilter with coffee grind into the automatic tamper (PUQ PRESS). After tamping,wipe any excess ground coffee.",
+     "Insert and gently lock the portafilter into espresso machine group head.Place the desired cup size under the portafilter to start extraction.",
+     "Pour the 125g of fresh milk into the pitcher.",
+     "While extracting the espresso 34 g-36g, steam the milk up to 60°C.",
+     "Pour the steamed milk into the cup with espresso on it.",
+     "Finish with an art. (Total Weight: 159g-161g)",
+     "Serve coffee with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Piccolo",
+    "tasks": [
+     "Place portafilter on the grinder nozzle to start automatic grinding of coffee beans (18.0g-18.8g).",
+     "Place the portafilter with coffee grind into the automatic tamper (PUQ PRESS).After tamping,wipe away any excess ground coffee.",
+     "Insert and gently lock the portafilter into the espresso machine group head.Place the 4oz cup size under portafilter to start extraction.",
+     "Pour the 72g amount of fresh milk into the pitcher.",
+     "While extracting the espresso take only single shot of dose 1 17g and steam the milk up to 60°C",
+     "Pour the steamed milk into the cup with espresso on it.",
+     "Finish with art. (Total Weight: 4oz- 89g)",
+     "Serve coffee with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Americano",
+    "tasks": [
+     "Place portafilter on the grinder nozzle to start automatic grinding of coffee beans (18.0g-18.8g).",
+     "Place the portafilter with coffee grind into the automatic tamper (PUQ PRESS).After tamping,wipe away any excess ground coffee.",
+     "Insert and gently lock the portafilter into the espresso machine group head.",
+     "Using the hot water from our espresso machine,pour hot water for 9oz 180g & for 12oz 270g directly into the cup.",
+     "Start extracting the espresso directly on the cup with hot water, 9oz 34g-36g & for 12oz 49g-51g.",
+     "Serve coffee with smile and advise customer to condiments bar. (Total Weight: 9oz-214g-216g/12oz-319g-321g)"
+    ]
+   },
+   {
+    "name": "Hot Chocolate",
+    "tasks": [
+     "Get the appropriate steaming pitcher size based on the order.",
+     "Take the hot chocolate mix gallon and shake well before using.",
+     "Pour hot chocolate mix for 9oz 200g & for 12oz 300g based on the order.",
+     "Steam the chocolate mixture up to 60°C.",
+     "Pour the steamed mixture into the cup. (Total Weight after steaming: 9oz-230g/12oz-340g)",
+     "Add topping crushed chocolate on the top of milk and chocolate mixture, 9oz-3g/ 12 oz-5g",
+     "Serve with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Signature Base Mix",
+    "tasks": [
+     "Start by placing an empty and clean blender jug to scale and tare.",
+     "Pump 180g of sweet sauce into the tared blender jug.",
+     "Make sure to not over portion the sweet sauce.",
+     "Directly from milk jug add 1,080g fresh milk into the sweet sauce inside the blender jug.",
+     "Secure the filled blender jug into the blender.",
+     "Press button 1 to start blending the mixture and close the lid cover of the blender.Blend for 18 seconds.",
+     "After the blending time finishes,transfer the mixture into dispenser until it is full.",
+     "Close the lid of the dispenser and turn on the spray of the dispenser to keep the mixture consistency."
+    ]
+   },
+   {
+    "name": "Iced Matcha Base Mix",
+    "tasks": [
+     "Start by placing an empty and clean blender jug to scale and tare.",
+     "Add 150g of Matcha Powder into the tared blender jug.",
+     "Make sure to not over portion the sweet sauce.",
+     "Directly from milk jug add 1,300g fresh milk into the Matcha Powder inside the blender jug.",
+     "Secure the filled blender jug into the blender.",
+     "Press button 1 to start blending the mixture and close the lid cover of the blender. Blend 3 times for 54 seconds.",
+     "After the blending time finishes,transfer the mixture into dispenser until it is full.",
+     "Close the lid of the dispenser and turn on the spray of the dispenser to keep the mixture consistency."
+    ]
+   },
+   {
+    "name": "Iced Signature",
+    "tasks": [
+     "Start by placing ice cubes on a clean plastic cup (12oz-5pcs 100g/16oz-8pcs 160g).",
+     "Fill the plastic cup with signature base until reach above waterline mark of the cup.",
+     "Extract espresso from our espresso machine as per the standards 12oz 34g-36g & 16 oz 49g-51g.",
+     "Add the extracted espresso on the prepared ice signature cup",
+     "Be careful not to over fill cup until the rim 12oz 200g and 16oz 310g of the cup.Cover with the appropriate lid.",
+     "Serve it with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Iced Latte",
+    "tasks": [
+     "Start by placing ice cubes on a clean plastic cup (12oz-5pcs 100g/16oz-8pcs 160g).",
+     "Fill the plastic cup with fresh milk until reached above waterline mark of the cup.",
+     "Extract espresso from our espresso machine as per the standards 12oz 34g-36g & 16 oz 49g-51g.",
+     "Add the extracted espresso on the prepared Iced Latte Cup.",
+     "Be careful not to over fill cup until the rim 12oz 200g and 16oz 310g of the cup.Cover with the appropriate lid.",
+     "Serve with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Iced Americano",
+    "tasks": [
+     "Start by placing ice cubes on a clean plastic cup (12oz-5pcs 100g/16oz-8pcs 160g).",
+     "Fill the plastic cup with chilled water until reached above waterline mark of the cup.",
+     "Extract espresso from our espresso machine as per the standards 12oz 34g-36g & 16 oz 49g-51g.",
+     "Add the extracted espresso on the prepared Iced Cup with chilled water.",
+     "Be careful not to over fill cup until the rim 12oz 200g and 16oz 310g of the cup.Cover with the appropriate lid.",
+     "Serve with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Iced Cereal Latte",
+    "tasks": [
+     "Start by placing ice cubes on a clean plastic cup (12oz-5pcs 100g/16oz-8pcs 160g).",
+     "Fill the plastic cup with cereal base until reach above waterline mark of the cup.",
+     "Extract espresso from our espresso machine as per the standards.",
+     "Add the extracted espresso on the prepared iced cereal cup, 12oz 1 shot of dose 1 17g & 16oz 1 shot of dose 2 25g.",
+     "Be careful not to over fill cup until the rim 12oz 220g and 16oz 335g of the cup.Cover with the appropriate lid.",
+     "Serve it with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Iced Chocolate",
+    "tasks": [
+     "Start by placing ice cubes on a clean plastic cup (12oz-5pcs 100g/16oz-8pcs 160g).",
+     "Put the Iced Chocolate mixture (250g for 12oz/340g for 16oz) until reached above waterline mark of the cup.",
+     "Be careful not to overfill cup until the rim of the cup. Cover with the appropriate lid and advise customer to condiment bar.",
+     "Serve it with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Passion Fruit",
+    "tasks": [
+     "Start by placing ice cubes on a clean Paper cup (9oz-3pcs 60g/12oz-5pcs 100g).",
+     "Put the Passion fruit mixture (180g for 9oz/230g for 12oz) until reached top rim of the cup.",
+     "Be careful not to overfill cup until the rim of the cup. Cover with the appropriate lid and advise customer to condiment bar.",
+     "Serve it with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Iced Hibiscus",
+    "tasks": [
+     "Start by placing ice cubes on a clean paper cup (60g for 9oz/100g for 12oz).",
+     "Put the Hibiscus mixture (180g for 9oz/230g for 12oz) until reached above waterline mark of the cup.",
+     "Be careful not to overfill cup until the rim of the cup. Cover with the appropriate lid and advise customer to condiment bar."
+    ]
+   },
+   {
+    "name": "Iced Matcha Latte",
+    "tasks": [
+     "Start by placing ice cubes on a clean plastic cup (12oz-5pcs 100g/16oz-8pcs 160g).",
+     "Put the matcha mixture (250g for 12oz/340g for 16oz) until reached above waterline mark of the cup.",
+     "Be careful not to overfill cup until the rim of the cup. Cover with the appropriate lid and advise customer to condiment bar."
+    ]
+   },
+   {
+    "name": "Vanilla Cookies Ice Cream",
+    "tasks": [
+     "Position the cup on the ice cream machine and dispense the Vanilla Ice cream making a pyramid peak 130g.",
+     "Put 7g of Salted caramel sauce on top and then add 12g of cookies cubes after the sauce and topping with 3g of shaved pecun nuts.",
+     "Cover with the appropriate lid.",
+     "Serve it with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Ice Cream Chocolate",
+    "tasks": [
+     "Position the cup on the ice cream machine and dispense the Chocolate ice cream making a pyramid peak 130g",
+     "Put 10g of Pretzel sauce on top and then 1g of Cocoa Nibs after the sauce.",
+     "Put 1pc of Pretzel Biscuit on top as shown in the picture.",
+     "Cover with appropriate lid.",
+     "Serve it with smile and advise customer to condiments bar."
+    ]
+   },
+   {
+    "name": "Affogato",
+    "tasks": [
+     "Start by scooping 2 scoops of vanilla ice cream 100g on a clean 9oz paper cup",
+     "Position the second scoop of vanilla ice cream on the top of first scoop.",
+     "Extract double shot espresso(34g-36g) from our espresso machine as per the standards.",
+     "Carefully add the extracted double shot espresso(34g-36g)on the top of scooped vanilla ice cream.",
+     "Cover with black hot lid and serve with a smile."
+    ]
+   },
+   {
+    "name": "Coffee Crunch",
+    "tasks": [
+     "Start by scooping 2 scoops of vanilla ice cream (100g) on a clean 9oz plastic cup",
+     "Position the second scoop of vanilla ice cream on the top of first scoop.",
+     "Extract single shot espresso(17g) from our espresso machine by placing 2 shot",
+     "shot glass on the spout of portafilter.: Carefully add the extracted single shot espresso(1 shot dose 1 17g)on the top of scooped vanilla ice cream",
+     "shot glass on the spout of portafilter.: Drizzle 30g of nutella sauce on the top of scooped vanilla ice cream",
+     "shot glass on the spout of portafilter.: Drizzle 30g of lotus sauce on the top of scooped vanilla ice cream.",
+     "shot glass on the spout of portafilter.: Topped with 13g of lotus crumble on the top of scooped vanilla ice cream.",
+     "shot glass on the spout of portafilter.: Cover with dome lid and serve with a smile."
+    ]
+   },
+   {
+    "name": "Cold Brew Bottling",
+    "tasks": [
+     "Start by placing a clean 254g PET bottle on top of a calibrated scale and tare.",
+     "Using a graduated milk pitcher,measure 254g of cold brew from the container and carefully pour into 254g PET bottle.",
+     "Cover with lid and sealed it tight ensuring that no leakage on the content",
+     "Put a label sticker.",
+     "Put and expiration date 5 days from production date based on the gallon on the bottom of bottle using a tagger.Keep it chilled and serve with a smile."
+    ]
+   },
+   {
+    "name": "Cold Latte Bottling",
+    "tasks": [
+     "Start by placing a clean 250g PET bottle on top of a calibrated scale and tare.",
+     "Directly from the Milk jug,carefully pour 220g fresh milk into PET Bottle.",
+     "Weigh the bottle content to ensure consistency in every bottled prepared",
+     "Extract double shot espresso(34g-36g) from our espresso machine.",
+     "Carefully add the extracted espresso on the prepared bottled signture mix.",
+     "Weigh the bottle content to ensure consistency in every bottled prepared",
+     "Cover with lid and sealed it tight ensuring that no leakage on the content and put a lable sticker.",
+     "Put an expiration date 2 days from production date on the bottom of bottle using a tagger.Keep it chilled and serve with a smile."
+    ]
+   },
+   {
+    "name": "Cold Signature Bottling",
+    "tasks": [
+     "Start by placing a clean 250G PET bottle on top of a calibrated scale and tare.",
+     "Using a graduated milk pitcher,measure 220g of signature mix from the signature mix dispenser and carefully pour 220g into bottle.",
+     "Weigh the bottle content to ensure consistency in every bottle prepared",
+     "Extract double shot espresso (34g-36g) from our espresso machine.",
+     "Carefully add the extracted espresso on the prepared bottled signature mix.",
+     "Weigh the bottle content to ensure consistency in every bottle prepared",
+     "Cover with lid and sealed it tight ensuring that no leakage on the content and put label sticker.",
+     "Put an expiration date 2 days from production date on the bottom of bottle using a tagger.Keep it chilled and serve with a smile."
+    ]
+   },
+   {
+    "name": "Matcha Bottling",
+    "tasks": [
+     "Start by placing a clean 250G PET bottle on top of a calibrated scale and tare.",
+     "Using a graduated milk pitcher,measure 250g of matcha mixture from the container and carefully pour into 250G PET bottle.",
+     "Cover with lid and sealed it tight ensuring that no leakage on the content",
+     "Put a label sticker.",
+     "Put and expiration date 2 days from production date on the bottom of bottle using a tagger.Keep it chilled and serve with a smile."
+    ]
+   },
+   {
+    "name": "Cereal Latte Bottling",
+    "tasks": [
+     "Start by placing a clean 250G PET bottle on top of a calibrated scale and tare.",
+     "Using a graduated milk pitcher, measure 220g of cereal mix from the cereal mix dispenser and carefully pour 220G into bottle.",
+     "Weigh the bottle content to ensure consistency in every bottle prepared",
+     "Extract double shot espresso but pour only 1 shot of dose 1 17g from our espresso machine.",
+     "Carefully add the extracted espresso on the prepared bottled cereal mix.",
+     "Weigh the bottle content to ensure consistency in every bottle prepared",
+     "Cover with lid and sealed it tight ensuring that no leakage on the content and put label sticker.",
+     "Put an expiration date 2 days from production date on the bottom of bottle using a tagger.Keep it chilled and serve with a smile."
+    ]
+   }
+  ]
+ },
+ {
+  "id": "barista",
+  "name": "Barista",
+  "sections": [
+   {
+    "name": "PRODUCT KNOWLEDGE",
+    "tasks": [
+     "THE EMPLOYEE IS AWARE OF THE COLD SECTION PRODUCTS.",
+     "THE EMPLOYEE IS AWARE OF THE HOT SECTION PRODUCTS.",
+     "THE EMPLOYEE IS AWARE OF THE DRIP COFFEE SECTION PRODUCTS (HOT AND COLD).",
+     "THE EMPLOYEE IS AWARE OF THE ICECREAM SECTION PRODUCTS.",
+     "THE EMPLOYEE IS AWARE OF THE MIXES PREPERATION",
+     "THE EMPLOYEE IS AWARE OF ALL FOOD ITEMS (SWEET AND SANDWICHES)"
+    ]
+   },
+   {
+    "name": "LATTE ART",
+    "tasks": [
+     "THE EMPLOYEE IS FAMILIAR WITH THE LATTE ART AND MAKING LATTE ART ON EVERY HOT DRINK."
+    ]
+   },
+   {
+    "name": "CALIBRATION",
+    "tasks": [
+     "THE EMPLOYEE IS FAMILIAR WITH THE CALLIBRATION PROCCEDUR AND APPLING IT.",
+     "THE EMPLOYEE IS FELLING THE CALLIBRATION SHEET.",
+     "THE EMPLOYEE IS FELLING THE DRIP COFFEE CALLIBRATION SHEET."
+    ]
+   },
+   {
+    "name": "DISPATCHING",
+    "tasks": [
+     "THE EMPLOYEE IS VERIFYING THE CUSTOMER INVOICE.",
+     "THE EMPLOYEE IS ARRENGAING THE CUSTOMER ORDER BEFORE DISPATCHING IT.",
+     "THE EMPLOYEE DIRECTING THE CUSTOMER TO THE CONDIMENTS."
+    ]
+   },
+   {
+    "name": "PRODUCT AWARENESS",
+    "tasks": [
+     "THE EMPLOYEE IS AWARE ABOUT ALL MENU ITEMS",
+     "THE EMPLOYEE IS FAMILIAR WITH ALL THE PRODUCT ALLERGIES",
+     "THE EMPLOYEE KNOWS THE PRICES OF HALF MILLION PRODUCTS.",
+     "THE EMPLOYEE IS AWARE OF THE PRICES OF ANY ADDITIONALS ON PRODUCTS."
+    ]
+   },
+   {
+    "name": "HALF MILLION BRANDED MUGS",
+    "tasks": [
+     "TEAM KNOWS ALL RELATED INFORMATION ON HALF MILLION MUGS",
+     "THE EMPLOYEE IS AWARE HOW TO CHECK ANY HALF MILLION MUG.",
+     "THE EMPLOYEE IS FAMILIAR WITH THE POLICY OF THE FREE DRINK INSIDE THE MUG AND IT CRITIRAS."
+    ]
+   },
+   {
+    "name": "TEAM WORK AND COMMUNICATION SKILLS",
+    "tasks": [
+     "THE EMPLOYEE IS MAKING CLEAR COMMUNCATION AMOUNG HIS STORE TEAM TO ENSURE A SMOOTH OPERATION.",
+     "THE EMPLOYEE IS WORKING WITH HIS TEAM AND ALWAYS READY TO HELP ALWAYS.",
+     "THE EMPLOYEE IS HELPING HIS TEAM IN PREPEARING PRODUCTS (SANDWICHES, SWEET)."
+    ]
+   },
+   {
+    "name": "POLICIES",
+    "tasks": [
+     "THE EMPLOYEE IS APPLYING HALF MILLION DRIP COFFEE REFILL POLICY",
+     "THE EMPLOYEE IS FAMILIAR WITH THE STAFF USAGE DISCOUNT.",
+     "THE EMPLOYEE IS FAMILIAR WITH THE VACATION AND SICKLEAVES POLICIES.",
+     "THE EMPLOYEE IS FAMILIAR OF THE BREAK POLICY.",
+     "THE EMPLOYEE IS FAMILIAR WITH THE DEPLOYMENT POLICIES.",
+     "THE EMPLOYEE IS WORKING THEIR FULL WORKING HOURS AND FOLLOWING THE SCEDUALE.",
+     "THE EMPLOYEE IS FAMILIAR WITH THE COMPANY DRESS CODE POLCY (INCLUDING PPE)"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "manager",
+  "name": "Manager",
+  "sections": [
+   {
+    "name": "BAR AREA CHECK",
+    "tasks": [
+     "EMPLOYEES HANDS ARE WASHED, SANITIZED, AND WEARING HAND GLOVES BEFORE HANDLING ANY DRINKS.",
+     "THERMOMETER CALIBRATED SPECS OF THERMOMETER (0-220 C).",
+     "COUNTER (HOT & COLD ) SECTIONS ARE DRY, CLEANED, AND IN GOOD SMELL  ALWAYS.",
+     "BLENDERS ARE CLEANED AND IN GOOD CONDITIONS.",
+     "DISPENSER MACHINES ( CRATHCO )  ARE CLEAN AND RESTOCKED AS NEEDED AND THE TWO BUTTONS ARE WORKING (ON ALWAYS , SPIN BUTTON WORKING ALWAYS )"
+    ]
+   },
+   {
+    "name": "DOSER/GRINDER AND EMPLOYEES KNOWLEDGE & PRACTICE ON IT",
+    "tasks": [
+     "BARISTAS KNOW HOW TO CALIBRATE, APPLYING CURRENT CALIBRATION PROCESS, GRINDER ARE CLEANED AND IN GOOD CONDITION.",
+     "DRIP COFFE MACHINE (HOT & COLD)ARE CLEANED AND THE THERMAL IS CLEANED ALL THE TIME AND IN GOOD CONDITION.",
+     "FILTERS ARE APPLIED PROPERLY EVERY SINGLE USE ANDCLEANING OF BREW BASKET",
+     "MACHINE EVERY DAY USING APPLIED CHEMICAL MATERIALS , DRIP COFFEE BREWER SET UPTO STANDARD TEMP (93°C).",
+     "DRIP COFFEE GRINDER IS CLEANED AND SET IN CORRECT GRIND SIZE.",
+     "DRIP COFFEE IS SERVED FRESH AND COMPLETED FROM THE BREW TANK, BROHIBITED TO FILL FROM TWO DIFFERENT BREW TANKERS.",
+     "DRIP COFFEE BREWER IS RINSED BEFORE BREWING NEW BATCH BREWED COFFEE, SHELF LIFE IS MONITORED USING TIMER 30MIN. AND 1HR AND TO BE TASTED BEFORE SERVING"
+    ]
+   },
+   {
+    "name": "ESPRESSO MACHINE HOT AND COLD/NITRO MACHINE/ICE CREAM MACHINE",
+    "tasks": [
+     "BREWING WATER TEMPERATURE (93.5°C & 94°C) W/CLEAN PORTAFILTER & GROUPHEAD.",
+     "ICE CREAM MACHINE SET UP TO STANDARD VISCOSITY 3.00 (CHOCOLATE) & 3.00 (GOLDEN CHOCOLATE) AND MIX TEMPRATURE 4.00 (CHOCOLATE) & 4.00 (GOLDEN CHOCOLATE).",
+     "ESPRESSO SHOT CALIBRATED 34-36 GRAMS DOSE 1 & 49-51 GRAMS DOSE 2 WITH AS PER ESPRESSO SHOT IS EXTRACTED.",
+     "NITRO MACHINE SET UP TO STANDARD MODE OR SETTING 9 O'CLOCK.",
+     "NITRO MACHINE IS UP STANDARD AND PEACH ICED TEA AND HIBISCUS IS UP TO STANDARD.",
+     "AUTOMATIC PORTAFILTER CLEANERS ARE ALWAYS CLEANED AND WITHOUT COFFEE BUILD UP."
+    ]
+   },
+   {
+    "name": "MENU ITEMS PREPRATION & STAFF PRACTICES",
+    "tasks": [
+     "THE TEAM PREPARES ALL HOT DRINKS MENU ITEMS, AS PER HM STANDARD.",
+     "THE TEAM PREPARES ALL COLD DRINKS MENU ITEMS, AS PER HM STANDARD.",
+     "TEAM MUST HAVE FULL S.O.P KNOWLEDGE AND ITS PREPARED ACCORDIGNLY UP TO HALF MILLION STANDARD.",
+     "TEAM MUST HAVE FULL S.O.P KNOWLEDGE OF \"NEW PRODUCTS\" AND ITS PREPARATION UP TO HALF MILLION STANDARD.",
+     "TEAM ARE PREPARING THE HM PRODUCTS AS PER STANDARD AND RIGHT PACKING INCLUDING BLACK STOPER/SPLASH LID GUARD, ONLY FOR HOT DRINKS FOR HM APP. & AGGREGATORS."
+    ]
+   },
+   {
+    "name": "HALF MILLION BRANDED MUGS",
+    "tasks": [
+     "TEAM KNOWS ALL RELATED INFORMATION ON HALF MILLION MUGS",
+     "CLEANING AND WASHING PROCESS FOR NEWLY MUGS ARE APPLIED AND MAINTAIN SELF DRY, SAME AS REPEATED CUSTOMERS MUGS AS WELL.",
+     "PREPARATION OF DRINKS IN BOTH HOT AND COLD MUGS ARE UP TO STANDARD."
+    ]
+   },
+   {
+    "name": "ALLERGEN CHART",
+    "tasks": [
+     "ALLERGIES CHART IS PRINTED AND SHARED WITH ALL TEAM."
+    ]
+   },
+   {
+    "name": "CLEANERS KNOWLEDGE",
+    "tasks": [
+     "PERSONAL HYGIENE AND GROOMING ARE UP TO HALF MILLION STANDARD.",
+     "PROPER HANDLING AND KNOWLEDGE OF DIFFERENT ECOLAB CHEMICALS AND ITS RIGHT USE.",
+     "PERFORMANCE AND KNOWLEDGE OF A CLEANER IS FULLY UPDATED ALL OVER ITS JOB RESPONSIBILITIES.",
+     "FOLLOWING AND COMPLETING THE DAILY CLEANER'S CHECKLIST.",
+     "ALL HM STAFF SHOULD FOLLOW THE \"PPE\" STANDARD"
+    ]
+   },
+   {
+    "name": "STORE MANPOWER AND REFLECTED POINT ON CUSTOMER SRVICE",
+    "tasks": [
+     "CHECK THE TOTAL MANPOWER OF THE STORE ALONG WITH TOTAL HEAD COUNT ON THE FLOOR.",
+     "MONITOR THE DRIVE THRU SOS SERVICE TIME.",
+     "THE STORE APPLIED STAFF’S USAGE, DISCOUNTS & REFUND POLICY ON POS.",
+     "THE STORE DEPLOYMENT PLAN IS BEING FOLLOWED AND EFFECTIVE.",
+     "AVAILABILITY OF QUALITY IMPROVEMENT AWARENESS PROCEDURE TO AVOID REPEATED ISSUES."
+    ]
+   },
+   {
+    "name": "INVENTORY SYSTEM",
+    "tasks": [
+     "ALL DELIVERIES ARE RECORDED AND RECEIVED IN SYRVE.",
+     "DAILLY WASTAGE ARE TRACKED ACCURATELY AND RECORDED IN WRITE OFF RECORDS IN SYRVE",
+     "STOCK TRANSFER TRANSACTIONS ARE DONE CORRECTLY IN SYRVE.",
+     "DAILY, WEEKLY, AND MONTHLY INVENTORY ARE RECORDED PROPERLY MANUALLY AND IN SYRVE SYSTEM."
+    ]
+   }
+  ]
+ }
+]

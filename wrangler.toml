@@ -1,0 +1,17 @@
+name = "hm-training-audit"
+main = "src/worker.js"
+compatibility_date = "2025-01-01"
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*"]
+not_found_handling = "single-page-application"
+
+[vars]
+PASS_MARK = "80"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "hm-training-audit"
+database_id = "REPLACE_WITH_D1_ID"   # deploy.sh fills this in
