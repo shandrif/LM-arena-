@@ -21,6 +21,7 @@
   async function show(id) {
     active = id; location.hash = id; LM.killCharts();
     tabs.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.id === id));
+    if (LM.liquidTabs && tabs.dataset.liquid) LM.liquidTabs.move(tabs, tabs.querySelector('button.on')); // the water drop follows the chosen tab
     panel.classList.remove('enter'); panel.replaceChildren(); void panel.offsetWidth; panel.classList.add('enter'); clearTimeout(show.t); show.t = setTimeout(() => panel.classList.remove('enter'), 700); // short rise on tab change only
     await depts.find((d) => d.id === id).mount(panel);
   }
@@ -78,7 +79,7 @@
     view && !LM.notice ? h('div', { class: 'banner', style: 'margin:8px 16px' }, 'Shared live dashboard · view only. The owner uploads the weekly files; you always see the latest data.') : null,
     snap ? h('div', { class: 'banner', style: 'margin:8px 16px' }, `Saved copy · data up to ${m.latest || '–'} · saved ${(m.savedAt || '').slice(0, 16).replace('T', ' ')}. Read-only: uploads are switched off here. Open the live dashboard to add or change data.`) : null,
     tabs), panel);
-  show(active);
+  show(active); if (LM.liquidTabs) LM.liquidTabs.attach(tabs);
   if (LM.week && LM.week.migrateLegacy) setTimeout(() => LM.week.migrateLegacy().catch(() => {}), 400); // one-time: put reports saved before weeks existed into a week
   });
 })();
