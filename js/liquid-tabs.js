@@ -129,10 +129,13 @@ void main(){
       else if (Math.abs(nx - T.x) > 0.5) { S.lead = Math.abs(nx - S.a.x) <= Math.abs(nx - S.b.x) ? 0 : 1; S.lagFrom = performance.now() + 70; S.moving = true; S.split = false; }
       T.x = nx; loop();
     }
-    function move(btn) { S.btn = btn; measure(false); const r = btn.getBoundingClientRect(), n = nav.getBoundingClientRect(); S.rips.push({ x: r.left - n.left + nav.scrollLeft + r.width / 2, y: S.t.cy, age: 0, amp: 0.5 }); loop(); }
+    function fades() { const max = nav.scrollWidth - nav.clientWidth; nav.style.setProperty('--fade-l', max > 2 && nav.scrollLeft > 4 ? '26px' : '0px'); nav.style.setProperty('--fade-r', max > 2 && nav.scrollLeft < max - 4 ? '26px' : '0px'); }
+    nav.addEventListener('scroll', fades, { passive: true });
+    nav.addEventListener('wheel', (e) => { if (nav.scrollWidth > nav.clientWidth && Math.abs(e.deltaY) > Math.abs(e.deltaX)) { nav.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false }); // mouse wheel scrolls the tabs sideways, no scrollbar needed
+    function move(btn) { S.btn = btn; measure(false); btn.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: reduce ? 'auto' : 'smooth' }); fades(); const r = btn.getBoundingClientRect(), n = nav.getBoundingClientRect(); S.rips.push({ x: r.left - n.left + nav.scrollLeft + r.width / 2, y: S.t.cy, age: 0, amp: 0.5 }); loop(); }
     nav.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; const n = nav.getBoundingClientRect(); S.mouse.x = e.clientX - n.left + nav.scrollLeft; S.mouse.y = e.clientY - n.top; S.mouse.on = true; loop(); });
     nav.addEventListener('pointerleave', () => { S.mouse.on = false; loop(); });
-    let lastW = -1; new ResizeObserver(() => { const w = nav.clientWidth + ':' + nav.scrollWidth; if (w !== lastW) { lastW = w; measure(true); } }).observe(nav);
+    let lastW = -1; new ResizeObserver(() => { const w = nav.clientWidth + ':' + nav.scrollWidth; if (w !== lastW) { lastW = w; measure(true); fades(); } }).observe(nav);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) loop(); });
     window.matchMedia && matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => loop());
     nav._liquid = { move, measure }; measure(true);
