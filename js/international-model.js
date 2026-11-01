@@ -37,16 +37,43 @@
     big.forEach((b) => { const col = T.filter((u) => u !== b && Math.abs(u.x - b.x) < 0.04); const label = col.filter((u) => u.y < b.y && b.y - u.y < 0.1).sort((p, q) => q.y - p.y)[0]; const sub = col.filter((u) => u.y > b.y && u.y - b.y < 0.25).sort((p, q) => p.y - q.y).map((u) => u.text); if (label) out.push({ label: label.text, value: b.text, sub }); });
     return out;
   }
+
+  /* "Wk 5 (25–31)", "Wk 4 (25–31 Oct)", "Week 3 (18–24 Oct)": the weekly rows of the newer London / Iraq decks */
+  const wkLabel = (c) => { const m = /^(?:Wk|Week)\s*(\d+)\*?\s*\((\d{1,2})\s*[–—-]\s*(\d{1,2})(?:\s*([A-Za-z]{3}))?/i.exec(String(c).trim()); return m ? { no: +m[1], d1: +m[2], d2: +m[3], mon: m[4] ? monNo(m[4]) : 0 } : null; };
+  const weekTables = (slides) => slides.flatMap((s) => items(s, 'table').filter((t) => /^week$/i.test(String(t.rows[0][0]).trim())).map((t) => ({ s, t })));
+  function periodFromWeekTables(slides, year) {
+    let rows = []; weekTables(slides).forEach(({ t }) => t.rows.slice(1).forEach((r) => { const w = wkLabel(r[0]); if (w && w.mon && w.d2 - w.d1 === 6) rows.push(w); })); const seen = new Set(); rows = rows.filter((w) => (seen.has(w.no) ? false : seen.add(w.no) || true)).sort((a, b) => a.no - b.no);
+    if (rows.length < 2) return null; const c = rows[rows.length - 1], p = rows[rows.length - 2]; const mk = (w) => ({ start: iso(year, w.mon, w.d1), end: iso(year, w.mon, w.d2), no: w.no }); return { period: mk(c), prev: mk(p), no: c.no };
+  }
+  /** Net sales / bills / APC for this week and last week, read from the "Week | Net sales | Trans. | APC | WoW" tables */
+  function metricsFromWeekTables(slides, D, market) {
+    const cur = D.weekNo, prevNo = cur - 1; if (!cur) return []; const iraq = /iraq/i.test(market); const out = []; const done = new Set();
+    const NAMES = iraq ? { net: 'Net sales (SAR)', bills: 'Transactions', apc: 'APC (SAR)', day: 'Net sales per day (SAR)' } : { net: 'Net sales (excl. VAT)', bills: 'Bills', apc: 'APC (excl. VAT)', day: 'Net sales per day (excl. VAT)' };
+    const kindOf = (h) => (/^net sales\b/i.test(h) && !/\//.test(h) ? 'net' : /^trans(actions?|\.)?$/i.test(h.trim()) ? 'bills' : /^apc\b/i.test(h) ? 'apc' : /^net\s*\/\s*day/i.test(h) ? 'day' : null);
+    weekTables(slides).forEach(({ t }) => { const rc = t.rows.find((r) => { const w = wkLabel(r[0]); return w && w.no === cur; }), rp = t.rows.find((r) => { const w = wkLabel(r[0]); return w && w.no === prevNo; }); if (!rc || !rp) return;
+      t.rows[0].forEach((h, c) => { const k = kindOf(String(h)); if (!k || done.has(k)) return; const pv = val(rp[c]), cv = val(rc[c]); if (pv == null || cv == null) return; let w = /wow/i.test(String(t.rows[0][c + 1] || '')) ? c + 1 : t.rows[0].findIndex((x, i) => i > c && /wow/i.test(String(x))); const pct = w >= 0 ? val(rc[w]) : null; done.add(k);
+        const sym = (/^[£$]/.exec(String(rc[c]).trim()) || [''])[0]; const dec = (/\.(\d+)/.exec(String(rc[c])) || [, ''])[1].length; const ch = cv - pv; const fmt = (x) => x.toLocaleString('en-GB', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+        out.push({ k, name: NAMES[k], prev: pv, curr: cv, change: ch, pct, raw: [String(rp[c]).trim(), String(rc[c]).trim(), `${ch < 0 ? '–' : '+'}${sym}${fmt(Math.abs(ch))}`] }); }); });
+    const order = ['net', 'bills', 'apc', 'day']; return out.sort((a, b) => order.indexOf(a.k) - order.indexOf(b.k)).map(({ k, ...m }) => ({ ...m, kind: k }));
+  }
+  /** first store's net sales (Iraq): "HM Baghdad | Net sales | 428,157 | … | +0.3%" */
+  function storeTile(slides, D) {
+    for (const s of slides) for (const t of items(s, 'table')) { if (!/^store/i.test(String(t.rows[0][0]))) continue; const H = t.rows[0]; const ci = H.findIndex((x) => new RegExp('^wk\\s*' + D.weekNo + '\\b(?!.*vs)', 'i').test(String(x).trim())); if (ci < 0) continue; const li = H.findIndex((x, i) => i > ci && /vs/i.test(String(x)));
+      let store = null; for (const r of t.rows.slice(1)) { if (r[0] && r.slice(1).every((x) => !String(x).trim())) { store = String(r[0]).trim(); continue; } if (store && /^net sales/i.test(String(r[0]).trim())) { const v = val(r[ci]); const pc = li >= 0 ? val(r[li]) : null; if (v == null) return null; return { label: store, value: v >= 1000 ? (v / 1000).toFixed(1) + 'K' : String(v), sub: [`Week ${D.weekNo} net sales (SAR)`, pc == null ? '' : `${pc < 0 ? '▼ –' : '▲ '}${Math.abs(pc).toFixed(1)}%`].filter(Boolean) }; } } }
+    return null;
+  }
   function parseReview(slides, name, ov, yearHint, issues, forcedMarket) {
     const first = slides[0]; const sub = items(first, 'text').map((t) => t.text).join(' ');
     const title = first.title; const market = forcedMarket || /^(\w+)/.exec(title.replace(/[–—-].*$/, ''))[1];
     let wk = weeksIn(sub, yearHint);
     if (!wk.length) { const out = []; const re = /Week\s*(\d+)\s*:\s*(\d{1,2})\s*[–—-]\s*(\d{1,2})\s*([A-Za-z]{3})\s*(20\d\d)/g; let m; while ((m = re.exec(sub))) { const m2 = monNo(m[4]); if (m2) out.push({ start: iso(+m[5], m2, +m[2]), end: iso(+m[5], m2, +m[3]), no: +m[1] }); } if (out.length >= 2) wk = [out[out.length - 1], out[out.length - 2]]; } const D = { market, title, period: wk[0] || null, prevPeriod: wk[1] || null, weekNo: (/Week\s*(\d+)\s*\(/i.exec(sub) || [])[1] ? +/Week\s*(\d+)\s*\(/i.exec(sub)[1] : (wk[0] && wk[0].no) || null };
+    if (!D.period) { const fb = periodFromWeekTables(slides, (/(20\d\d)/.exec(sub) || [])[1] ? +/(20\d\d)/.exec(sub)[1] : yearHint); if (fb) { D.period = fb.period; D.prevPeriod = fb.prev; D.weekNo = fb.no; } }
     if (!D.period) issues.push(I('error', 'The reporting week could not be read from the title slide.', { type: 'asOf', id: 'date', kind: 'date', label: 'Use this date as week end' }));
     // metrics table
     const mt = slides.flatMap((s) => items(s, 'table')).find((t) => t.rows[0].length >= 4 && /prev|week\s*\d/i.test(t.rows[0][1]) && /curr|week\s*\d/i.test(t.rows[0][2])); D.metrics = [];
     if (mt) mt.rows.slice(1).forEach((r) => { const pctCol = /%/.test(String(r[3] || '')); const pv = val(r[1]), cv = val(r[2]); D.metrics.push({ name: r[0], prev: pv, curr: cv, change: pctCol && pv != null && cv != null ? cv - pv : val(r[3]), pct: pctCol ? val(r[3]) : r[4] != null ? val(r[4]) : null, raw: r.slice(1) }); });
     else { const tl = slides.flatMap((s) => tiles(s)).filter((t) => t.sub.some((x) => /^W\d/.test(x))); const kv = (v) => { const m = /^([£$]?)([\d,.]+)\s*([KkMm]?)/.exec(String(v).replace(/[−–]/g, '-')); return m ? Number(m[2].replace(/,/g, '')) * ({ k: 1e3, m: 1e6 }[m[3].toLowerCase()] || 1) : null; }; tl.forEach((t) => { const ch = t.sub.find((x) => /[▲▼]/.test(x)) || ''; const w1 = t.sub.find((x) => /^W\d/.test(x)) || ''; const pc2 = /([▲▼])\s*([\d.]+)%/.exec(ch); D.metrics.push({ name: t.label, prev: kv(w1.replace(/^W\d\s*/, '')), curr: kv(t.value), change: null, pct: pc2 ? (pc2[1] === '▼' ? -1 : 1) * Number(pc2[2]) : null, raw: [w1.replace(/^W\d\s*/, ''), t.value, ch.replace(/^[▲▼]\s*[\d.]+%\s*/, '') || ch] }); }); if (!D.metrics.length) issues.push(I('warn', 'No week-on-week summary table found.')); }
+    let derived = false; if (!D.metrics.length) { const dm = metricsFromWeekTables(slides, D, market); if (dm.length) { D.metrics = dm; derived = true; const wi = issues.findIndex((i) => /No week-on-week summary table found/.test(i.msg)); if (wi >= 0) issues.splice(wi, 1); } }
     D.metrics.forEach((m) => { if (m.prev != null && m.curr != null && m.change != null && Math.abs(m.curr - m.prev - m.change) > Math.max(1.01, Math.abs(m.prev) * 0.002)) issues.push(I('warn', `${m.name}: change is ${m.raw[2]} but current − previous = ${(m.curr - m.prev).toLocaleString(undefined, { maximumFractionDigits: 2 })}.`)); const p = m.pct != null ? m.pct : null; if (m.prev && p != null && Math.abs(((m.curr - m.prev) / m.prev) * 100 - p) > 0.15) issues.push(I('warn', `${m.name}: the % change is ${m.raw[3] || m.pct} but the numbers give ${(((m.curr - m.prev) / m.prev) * 100).toFixed(2)}%.`)); });
     const byName = (re) => D.metrics.find((m) => re.test(m.name));
     // currency pair consistency (IQD vs SAR)
@@ -59,14 +86,16 @@
     D.blocks.filter((b) => b.kind === 'table').forEach((b) => { const rows = b.rows.slice(1); const tr = rows.find((r) => /^total/i.test(r[0])); if (!tr) return; const body = rows.filter((r) => r !== tr); b.rows[0].forEach((h, c) => { if (c === 0 || /%|apc|avg|per |share|large|gap|change|var/i.test(h)) return; const tv = val(tr[c]); const vs = body.map((r) => val(r[c])); if (tv == null || vs.some((v) => v == null)) return; const s2 = sum(vs, (v) => v); if (Math.abs(s2 - tv) > Math.max(1.5, Math.abs(tv) * 0.003)) issues.push(I('warn', `Slide ${b.slide} “${h}”: the rows add up to ${s2.toLocaleString(undefined, { maximumFractionDigits: 2 })} but the Total row says ${tr[c]}.`)); }); });
     D.blocks.filter((b) => b.kind === 'chart' && b.chart.series.length >= 1 && /^(sun|mon)/i.test(b.chart.cats[0] || '') && !/by store|per store|each store/i.test(b.title) && b.chart.series.slice(0, 2).every((x) => /week|^w\d|wk|prev|last|curr|this/i.test(x.name || ''))).forEach((b) => { const t = b.title; const find = /net sales/i.test(t) ? (net || byName(/net sales/i)) : /transaction|bills/i.test(t) ? bills : null; if (!find) return; const s = b.chart.series; [[s[0], 'prev'], [s[1], 'curr']].forEach(([se, k]) => { if (!se) return; const sm = sum(se.values, (v) => v); const tv = /net sales/i.test(t) && D.fx && /iqd/i.test(find.name) ? find[k] : find[k]; const alt = /net sales/i.test(t) ? D.metrics.find((m) => /net sales.*\(sar\)/i.test(m.name)) : null; const target = alt ? alt[k] : tv; if (target && Math.abs(sm - target) > Math.max(2, target * 0.004)) issues.push(I('warn', `Slide ${b.slide}: the daily chart (${k === 'curr' ? 'current' : 'previous'} week) adds up to ${Math.round(sm).toLocaleString()} but the summary says ${Math.round(target).toLocaleString()}.`)); }); });
     // callouts, focus points, info
-    const CAL = /^(WHAT WORKED|AREA TO FOCUS|AREA TO IMPROVE|WATCH|WHAT HAPPENED|WHAT DROVE IT|LEARNING|RISK)\b/i; D.callouts = [];
+    const CAL = /^(WHAT WORKED|AREA TO FOCUS|AREA TO IMPROVE|WATCH|WHAT HAPPENED|WHAT DROVE IT|WHAT CHANGED|MONTH IN BRIEF|LEARNING|RISK)\b/i; D.callouts = [];
     slides.forEach((s) => items(s, 'text').forEach((t) => { const m = CAL.exec(t.text); if (m && t.text.includes('\n')) { const L = t.text.split('\n').map((x) => x.trim()).filter(Boolean); D.callouts.push({ slide: s.n, kind: L[0].toUpperCase(), title: L[1] || '', text: L.slice(2).join(' ') }); } }));
-    const CAL2 = /^(WHAT WENT WELL|WHAT WORKED|AREA TO FOCUS|AREA TO IMPROVE|WATCH|WHAT HAPPENED)$/i;
+    const CAL2 = /^(WHAT WENT WELL|WHAT WORKED|AREA TO FOCUS|AREA TO IMPROVE|WATCH|WHAT HAPPENED|WHAT DROVE IT|WHAT CHANGED|MONTH IN BRIEF)$/i;
     slides.forEach((s) => { const T = items(s, 'text'); T.filter((t) => CAL2.test(t.text.trim())).forEach((l) => { const col = T.filter((u) => u !== l && !CAL2.test(u.text.trim()) && Math.abs(u.x - l.x) < 0.03 && u.y > l.y && u.y - l.y < 0.2).sort((a, b) => a.y - b.y); if (col.length) D.callouts.push({ slide: s.n, kind: l.text.trim().toUpperCase(), title: col[0].text.replace(/\s+/g, ' '), text: col[1] ? col[1].text.replace(/\s+/g, ' ') : '' }); }); });
     const fs = slides.find((s) => /areas?\s+(to\s+)?(focus|improve)|focus points/i.test(s.title) && !items(s, 'chart').length && !items(s, 'table').length); D.focus = []; if (fs) { const k = LM.training.kpiPairs(fs); const c = LM.training.cards(fs, new Set()); D.focus = c.cards.map((x) => ({ no: x.no, title: x.title, desc: x.desc, target: x.status })).filter((x) => x.title); if (!D.focus.length) issues.push(I('warn', 'The focus-points slide was found but no numbered items could be read.')); }
     const inf = slides.find((s) => /^information/i.test(s.title)); D.info = inf ? items(inf, 'text').filter((t) => t.text !== inf.title).flatMap((t) => t.text.split('\n')).map((x) => x.trim()).filter((x) => x.length > 3) : [];
-    const gs = slides.find((s) => /half million caf|google reviews/i.test(s.title + ' ' + items(s, 'text').map((t) => t.text).join(' ')) && !/week/i.test(s.title)); if (gs && !D.info.length) { const T = items(gs, 'text').filter((t) => t.text !== gs.title); const g = (re) => T.find((t) => re.test(t.text)); const rating = g(/^\d\.\d$/), nrev = T.find((t) => /^[\d,]{3,}$/.test(t.text.trim())), loves = T.find((t) => /^special|love/i.test(t.text) && t.text.includes('\n')) || T.filter((t) => t.text.includes('\n') && t.x > 0.4 && t.x < 0.6)[0], flags = T.filter((t) => t.text.includes('\n') && t.x > 0.65)[0], hrs = g(/^hours/i), src = g(/^source/i), addr = g(/\d.*(st|street|road).*·|·.*next to/i); D.info = [rating ? `Google rating ${rating.text}${nrev ? ` from ${nrev.text.trim()} reviews` : ''}${T.find((t) => /lowest price|£/.test(t.text) && t.text.length < 40) ? ' · ' + T.find((t) => /price band/.test(t.text)).text : ''}.` : null, addr ? addr.text : null, loves ? 'Guests love: ' + loves.text.split('\n').join('; ') : null, flags ? 'Guests flag: ' + flags.text.split('\n').join('; ') : null, hrs ? hrs.text : null, src ? src.text : null].filter(Boolean); }
+    const gs = slides.find((s) => /half million caf|google reviews/i.test(s.title + ' ' + items(s, 'text').map((t) => t.text).join(' ')) && !/week/i.test(s.title)); if (gs && !D.info.length) { const T = items(gs, 'text').filter((t) => t.text !== gs.title); const g = (re) => T.find((t) => re.test(t.text)); const rating = g(/^\d\.\d$/), nrev = T.find((t) => /^[\d,]{3,}(\s|$)/.test(t.text.trim())), l1 = g(/^what guests love/i), l2 = g(/^what could improve/i), under = (lab, end) => (lab ? T.filter((t) => t.text.includes('\n') && t.y > lab.y && (!end || t.y < end.y))[0] : null), loves = under(l1, l2) || T.find((t) => /^special|love/i.test(t.text) && t.text.includes('\n')) || T.filter((t) => t.text.includes('\n') && t.x > 0.4 && t.x < 0.6)[0], flags = under(l2, null) || T.filter((t) => t.text.includes('\n') && t.x > 0.65)[0], sumT = l1 ? T.find((t) => t.y < 0.25 && (t.fs || 0) >= 14 && t.text.length > 25) : null, hrs = g(/^hours/i), src = g(/^source/i), addr = g(/\d.*(st|street|road).*·|·.*next to/i); D.info = [rating ? `Google rating ${rating.text}${nrev ? ` from ${nrev.text.trim().split(/\s/)[0]} reviews` : ''}${T.find((t) => /lowest price|£/.test(t.text) && t.text.length < 40) ? ' · ' + T.find((t) => /price band/.test(t.text)).text : ''}.` : null, addr ? addr.text : null, loves ? 'Guests love: ' + loves.text.split('\n').join('; ') : null, flags ? 'Guests flag: ' + flags.text.split('\n').join('; ') : null, hrs ? hrs.text : null, src ? src.text : null, sumT ? sumT.text.replace(/\s+/g, ' ') : null].filter(Boolean); }
     D.tiles = slides.flatMap((s) => tiles(s)); D.slides = slides.map((s) => ({ n: s.n, title: s.title }));
+    if (derived) { const pn = D.weekNo - 1; const arrow = (m) => (m.pct == null ? '' : `${m.pct < 0 ? '▼ –' : '▲ +'}${Math.abs(m.pct).toFixed(1)}% WoW`); const TL = { net: 'Net sales (excl. VAT)', bills: 'Bills (transactions)', apc: 'APC (excl. VAT)', day: 'Net sales per day' };
+      D.tiles = D.metrics.map((m) => ({ label: /iraq/i.test(market) ? m.name : TL[m.kind] || m.name, value: m.raw[1], sub: [`Week ${pn}: ${m.raw[0]}`, arrow(m)].filter(Boolean) })); if (/iraq/i.test(market)) { const st = storeTile(slides, D); if (st) D.tiles.splice(3, 1, st); } D.metrics.forEach((m) => delete m.kind); }
     if (D.period) { const len = days(D.period.start, D.period.end) + 1; if (len !== 7) issues.push(I('warn', `The week is ${len} days (${D.period.start} → ${D.period.end}).`)); if (D.prevPeriod && days(D.prevPeriod.end, D.period.start) !== 1) issues.push(I('warn', `The “previous week” (${D.prevPeriod.start} → ${D.prevPeriod.end}) does not directly precede the current week.`)); if (!D.prevPeriod) issues.push(I('warn', 'The previous week could not be read from the title slide.')); const dow = new Date(D.period.start + 'T00:00:00Z').getUTCDay(); if (dow !== 0) issues.push(I('info', `The week starts on a ${['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dow]}.`)); }
     return D;
   }
@@ -75,7 +104,8 @@
   /* ---------- event performance report ---------- */
   function parseEvents(slides, issues) {
     const s0 = slides[0]; const sub = items(s0, 'text').map((t) => t.text).join(' ');
-    const pm = /(\d{1,2})\s*[–—-]\s*(\d{1,2})\s+([A-Za-z]{3,9})\s+(20\d\d)/.exec(sub); const m = pm ? monNo(pm[3]) : 0; const period = pm && m ? { start: iso(+pm[4], m, +pm[1]), end: iso(+pm[4], m, +pm[2]) } : null;
+    let period = null; const p2 = /(\d{1,2})\s+([A-Za-z]{3,9})\s+(20\d\d)\s*[–—-]\s*(\d{1,2})\s+([A-Za-z]{3,9})\s+(20\d\d)/.exec(sub); if (p2 && monNo(p2[2]) && monNo(p2[5])) period = { start: iso(+p2[3], monNo(p2[2]), +p2[1]), end: iso(+p2[6], monNo(p2[5]), +p2[4]) }; // “01 Oct 2026 – 30 Oct 2026” (event report PDF)
+    const pm = period ? null : /(\d{1,2})\s*[–—-]\s*(\d{1,2})\s+([A-Za-z]{3,9})\s+(20\d\d)/.exec(sub); const m = pm ? monNo(pm[3]) : 0; if (pm && m) period = { start: iso(+pm[4], m, +pm[1]), end: iso(+pm[4], m, +pm[2]) };
     const cnt = /(\d+)\s+reported events/i.exec(sub); const D = { title: s0.title, period, reported: cnt ? +cnt[1] : null, subtitle: items(s0, 'text').slice(1).map((t) => t.text.replace(/\s+/g, ' ')).join(' · ') };
     const isNum = (t) => /^[\d,.]+$/.test(t.text.trim());
     const ks = slides.find((x) => items(x, 'text').filter((t) => (t.fs || 0) >= 24 && isNum(t)).length >= 4); D.kpis = []; D.insights = [];
@@ -127,12 +157,21 @@
   /* ---------- one deck holding several sections (London, Iraq, event performance, Saudi NSO, expansion) ---------- */
   const hasTable = (s, re) => items(s, 'table').some((t) => re.test(t.rows[0].map(norm).join('|')));
   function sectionsOf(slides) {
-    const iL = slides.findIndex((s) => /london.*weekly\s*(performance\s*)?review/i.test(s.title)); const iI = slides.findIndex((s) => /weekly sales comparison/i.test(s.title) || (/iraq/i.test(items(s, 'text').map((t) => t.text).join(' ')) && /store-by-store/i.test(items(s, 'text').map((t) => t.text).join(' ')))); const iE = slides.findIndex((s) => /event performance report/i.test(s.title));
-    const marks = [['london', iL], ['iraq', iI], ['events', iE]].filter(([, i]) => i >= 0).sort((a, b) => a[1] - b[1]); if (marks.length < 2) return null;
-    const tailAt = slides.findIndex((s, i) => i > (marks[marks.length - 1][1]) && (hasTable(s, /readiness/) || /^nso\b|gcc expansion|^expansion$/i.test(s.title))); const end = tailAt >= 0 ? tailAt : slides.length; const out = [];
-    marks.forEach(([k, i], j) => out.push([k, slides.slice(i, j + 1 < marks.length ? marks[j + 1][1] : end)]));
-    const tail = tailAt >= 0 ? slides.slice(tailAt) : []; const nsoS = tail.filter((s) => hasTable(s, /readiness/)), expS = tail.filter((s) => items(s, 'table').length && !hasTable(s, /readiness/) && hasTable(s, /status/));
-    if (nsoS.length) out.push(['nso', nsoS]); if (expS.length) out.push(['expansion', expS]); return out;
+    const txt = (s) => items(s, 'text').map((t) => t.text).join(' ');
+    const kind = (s) => { const t = txt(s);
+      if (/london.*(weekly\s*(performance\s*)?review|performance review)/i.test(s.title)) return 'london';
+      if (/weekly sales comparison/i.test(s.title) || /^iraq\b.*weekly performance/i.test(s.title) || (/iraq/i.test(t) && /store-by-store/i.test(t))) return 'iraq';
+      if (/event performance report/i.test(s.title)) return 'events';
+      if (hasTable(s, /readiness/) || /^nso\b/i.test(s.title)) return 'nso';
+      if (/gcc expansion/i.test(s.title) || /iraq operation\s*(&|and)\s*expansion/i.test(s.title)) return 'expansion';
+      return null; };
+    const by = { london: [], iraq: [], events: [], nso: [], expansion: [] }; const seen = new Set(); let cur = null; let dup = 0;
+    slides.forEach((s) => { const k = kind(s); if (k) { if (seen.has(k) && (k === 'london' || k === 'iraq' || k === 'events') && by[k].length && (cur !== k)) { cur = 'skip'; } else { cur = k; seen.add(k); } }
+      if (cur === 'skip') { dup++; return; } if (cur) by[cur].push(s); });
+    const secs = []; if (by.london.length) secs.push(['london', by.london]); if (by.iraq.length) secs.push(['iraq', by.iraq]); if (by.events.length) secs.push(['events', by.events]);
+    if (secs.length < 2) return null;
+    const nsoS = by.nso.filter((s) => hasTable(s, /readiness/)), expS = by.expansion.filter((s) => items(s, 'table').length && !hasTable(s, /readiness/) && hasTable(s, /status/));
+    if (nsoS.length) secs.push(['nso', nsoS]); if (expS.length) secs.push(['expansion', expS]); secs.dup = dup; return secs;
   }
   async function analyzeCombined(secs, name, ov, template, existing, hash, others) {
     const parts = []; let weekEnd = ov.asOf && ov.asOf.date;
@@ -140,6 +179,7 @@
     const issues = []; parts.forEach((p) => p.issues.forEach((i) => issues.push({ ...i, msg: `${p.label}: ${i.msg}` })));
     const known = template.combined || []; const got = parts.map((p) => p.type); known.filter((k) => !got.includes(k)).forEach((k) => issues.push(I('warn', `The ${TYPES[k].label} section was in the previous deck but is missing now.`))); got.filter((k) => known.length && !known.includes(k)).forEach((k) => issues.push(I('info', `New section in this deck: ${TYPES[k].label}.`)));
     if (!secs.some(([k]) => k === 'nso')) issues.push(I('info', 'No Saudi NSO / stores-to-open table was found in this deck.'));
+    if (secs.dup) issues.push(I('info', `${secs.dup} slide(s) repeat a section that is already in this deck (for example a second copy of the Iraq slides) and were ignored.`));
     const pic = []; const dates = parts.filter((p) => p.ds && (p.type === 'london' || p.type === 'iraq')).map((p) => p.ds.end); if (new Set(dates).size > 1) issues.push(I('warn', `The London and Iraq sections end on different days (${[...new Set(dates)].join(', ')}).`)); void pic;
     const ends = parts.filter((p) => p.ds).map((p) => p.ds.end).sort(); return { type: 'combined', parts, issues, ds: { type: 'combined', start: ends[0] || null, end: weekEnd || ends[ends.length - 1] || null, data: {} } };
   }
@@ -172,5 +212,53 @@
     if (type === 'nso' && others && others.nepList) { const L = others.nepList; data.rows.forEach((r) => { const m = nepMatch(r.name, L); r.nep = m ? { name: m.name, openDate: m.openDate, ym: m.ym, status: m.status } : null; if (!m) { issues.push(I('info', `“${r.name}” is not in the NEP plan for the next months.`)); return; } const nd = m.openDate || `${m.ym}-15`; if (r.when) { const d = days(nd, r.when); r.slipDays = d; if (Math.abs(d) > 7) issues.push(I('warn', `“${r.name}”: this deck says ${r.comment.replace(/^.*?(open|launch)/i, '$1')} (${r.when}), but the NEP plan has ${m.name} on ${m.openDate || m.ym} (${d > 0 ? d + ' days later' : -d + ' days earlier'}).`)); } }); }
     return { type, ds, issues };
   }
-  LM.international = { TYPES, analyze, val, nepMatch, openWhen, sectionsOf };
+
+  /* ---------- "HM Weekly Event Report" (PDF): turned into the same data as the event slides of the weekly deck ---------- */
+  const isEventPdf = (pages) => { const t = pages && pages[0] ? pages[0].items.map((i) => i.s).join(' ') : ''; return /event performance overview/i.test(t) && /weekly event report/i.test(t); };
+  const rowsOf = (its, tol) => { const rows = []; [...its].sort((a, b) => a.y - b.y || a.x - b.x).forEach((i) => { const r = rows.find((q) => Math.abs(q.y - i.y) <= (tol || 3)); if (r) r.items.push(i); else rows.push({ y: i.y, items: [i] }); }); rows.forEach((r) => r.items.sort((a, b) => a.x - b.x)); return rows; };
+  const joinRun = (its) => its.slice().sort((a, b) => a.x - b.x).reduce((t, i, k, a) => t + (k && i.x - (a[k - 1].x + a[k - 1].w) > 1.5 ? ' ' : '') + i.s, '');
+  const NUMTOK = /^(\d[\d,]*(\.\d+)?|n\.?a\.?)$/i;
+  const typeNorm = (t) => String(t).replace(/\s+/g, ' ').trim().replace(/^normal selling event$/i, 'Normal selling').replace(/^selling event\s*[–—-]\s*/i, 'Selling, ').replace(/\(100% marketing discount\)/i, '(100% marketing)');
+  function eventPdfSlides(pages, issues) {
+    const P1 = pages[0], W = P1.w, Hh = P1.h; const rows = rowsOf(P1.items, 3); const slides = []; const T = (text, x, y, fs) => ({ kind: 'text', text, x: x / W, y: y / Hh, fs });
+    const s1 = { n: 1, title: (rows[0] && joinRun(rows[0].items)) || 'Event Performance Overview', items: [] };
+    if (rows[1]) s1.items.push(T(joinRun(rows[1].items), rows[1].items[0].x, rows[1].y, 10));
+    // headline figures: a row of big numbers with a caption row under it
+    const vi = rows.findIndex((r, i) => i > 1 && r.items.length >= 4 && r.items.every((x) => NUMTOK.test(x.s))); if (vi >= 0 && rows[vi + 1]) { rows[vi].items.forEach((v) => { const lab = rows[vi + 1].items.map((l) => ({ l, d: Math.abs(l.x + l.w / 2 - (v.x + v.w / 2)) })).sort((a, b) => a.d - b.d)[0]; s1.items.push(T(v.s, v.x, v.y, 30)); if (lab) s1.items.push(T(lab.l.s, v.x, rows[vi + 1].y, 10)); }); } else issues.push(I('warn', 'The headline figures (cups, net sales, transactions, average check, events) were not found on the first page.'));
+    // the event table
+    const hi = rows.findIndex((r) => r.items.some((x) => /^event$/i.test(x.s)) && r.items.some((x) => /cups/i.test(x.s))); const tbl = [['Event', 'Type', 'Cups', 'Net sales (SAR)', 'Transactions', 'Avg check (SAR)', 'Days', 'Avg daily sales']];
+    const hdr = hi >= 0 ? rows[hi].items : []; const cupsX = ((hdr.find((x) => /^cups/i.test(x.s)) || {}).x || 480) - 30, typeX = ((hdr.find((x) => /^discount|^type/i.test(x.s)) || {}).x || 240) - 4;
+    if (hi >= 0) rows.slice(hi + 1).forEach((r) => { const nums = r.items.filter((x) => x.x >= cupsX && NUMTOK.test(x.s)), nameP = r.items.filter((x) => x.x < typeX), typeP = r.items.filter((x) => x.x >= typeX && x.x < cupsX); if (nums.length < 4 || !nameP.length) return; if (nums.length !== 6) issues.push(I('warn', `“${joinRun(nameP)}”: ${nums.length} figures were found on its row instead of 6.`)); const cells = nums.map((x) => x.s); while (cells.length < 6) cells.push('n.a.'); tbl.push([joinRun(nameP).replace(/\s+Event$/i, ''), typeNorm(joinRun(typeP)), ...cells.slice(0, 6)]); });
+    if (tbl.length < 2) issues.push(I('error', 'The event-by-event table was not found.'));
+    s1.items.push({ kind: 'table', rows: tbl }); slides.push(s1);
+    // page 2: cups per event (chart) — built from the table, then checked against the numbers printed on the page
+    const ev = tbl.slice(1).map((r) => ({ name: r[0], cups: val(r[2]) })).filter((e) => e.cups).sort((a, b) => b.cups - a.cups);
+    slides.push({ n: 2, title: 'Cups served by event', items: ev.length ? [{ kind: 'chart', type: 'bar', dir: 'bar', grouping: 'clustered', title: 'Cups served by event', cats: ev.map((e) => e.name), series: [{ name: 'Cups served', values: ev.map((e) => e.cups) }] }] : [] });
+    const p2 = pages[1] ? pages[1].items.map((i) => i.s).join(' ') : ''; if (pages[1]) { const miss = ev.filter((e) => !p2.includes(e.cups.toLocaleString('en-US'))); if (miss.length) issues.push(I('warn', `Page 2 does not show the cups of: ${miss.map((e) => e.name).join(', ')}.`)); }
+    slides.push({ n: 3, title: 'Additional Activities', items: [] }); return { slides, p2 };
+  }
+  function eventPdfExtras(D, pages, p2, issues) {
+    const E = D.events; const total = sum(E, (e) => e.net); const top = E.slice().sort((a, b) => b.net - a.net)[0]; const free = E.filter((e) => !e.net); const freeCups = sum(free, (e) => e.cups); const hiAvg = E.filter((e) => e.avg).sort((a, b) => b.avg - a.avg)[0]; const fmt = (n, d) => n.toLocaleString('en-US', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 });
+    D.insights = []; if (top && total) D.insights.push(`${((top.net / total) * 100).toFixed(1)}% of net sales came from one event: ${top.name} (SAR ${fmt(top.net, 2)} over ${top.days} days).`);
+    if (freeCups) D.insights.push(`${fmt(freeCups)} cups served at zero-revenue complimentary events (${free.map((e) => e.name).join(', ')}).`);
+    if (hiAvg && top && top.avg) D.insights.push(`${hiAvg.avg.toFixed(2)} SAR average check at ${hiAvg.name} — the highest of any event, ${Math.round((hiAvg.avg / top.avg - 1) * 100)}% above ${top.name}.`);
+    // the page's own highlight cards must agree with the table
+    const m1 = /([\d.]+)%\s+of net sales came from/i.exec(p2), m2 = /([\d,]+)\s+cups served at zero-revenue/i.exec(p2), m3 = /SAR\s*([\d.]+)\s+.*?highest average check/i.exec(p2);
+    if (m1 && top && total && Math.abs(+m1[1] - (top.net / total) * 100) > 0.1) issues.push(I('warn', `Page 2 says ${m1[1]}% of net sales came from one event but the table gives ${((top.net / total) * 100).toFixed(1)}%.`)); if (m2 && +m2[1].replace(/,/g, '') !== freeCups) issues.push(I('warn', `Page 2 says ${m2[1]} zero-revenue cups but the table gives ${fmt(freeCups)}.`)); if (m3 && hiAvg && Math.abs(+m3[1] - hiAvg.avg) > 0.01) issues.push(I('warn', `Page 2 says the highest average check is SAR ${m3[1]} but the table gives ${hiAvg.avg.toFixed(2)}.`));
+    // notes: footnotes derived from the table + the "Additional Activities" page
+    D.notes = []; const na = E.filter((e) => e.avg == null && e.net > 0); const noTr = E.filter((e) => e.trans == null); if (noTr.length) D.notes.push(`Average check and transactions are not recorded for: ${noTr.map((e) => e.name).join(', ')}.`);
+    E.filter((e) => /^complimentary\*?$/i.test(e.type) && e.net > 0).forEach((e) => { e.type = 'Complimentary*'; D.notes.push(`* ${e.name} is listed as complimentary but recorded ${fmt(e.net, 2)} SAR in sales and ${e.trans || 0} transactions. Source: Half Million Event Reporting.`); }); void na;
+    const P3 = pages[2]; if (P3) { const W = P3.w; const rowsP = rowsOf(P3.items, 3); const headRow = rowsP.find((r) => /hospitality requests|orders & events/i.test(joinRun(r.items))); const head = headRow ? joinRun(headRow.items) : '';
+      const left = P3.items.filter((i) => i.x < W * 0.41 && (!headRow || i.y > headRow.y + 6)); const days = left.filter((i) => /^\d{1,2}$/.test(i.s) && i.x < 90), mons = left.filter((i) => /^[A-Z]{3}$/.test(i.s) && i.x < 110);
+      const dates = days.map((d) => { const m = mons.find((q) => Math.abs(q.y - d.y) < 3 && q.x > d.x); return m ? { y: d.y, label: `${d.s} ${m.s[0]}${m.s.slice(1).toLowerCase()}` } : null; }).filter(Boolean).sort((a, b) => a.y - b.y);
+      const acts = dates.map((dt, k) => { const y0 = dt.y - 14, y1 = dates[k + 1] ? dates[k + 1].y - 14 : 1e9; const its = left.filter((i) => i.x >= 100 && i.y >= y0 && i.y < y1); const lines = rowsOf(its, 3).map((r) => joinRun(r.items)); return { when: dt.label, name: (lines[0] || '').replace(/\s*\(today\)/i, ''), detail: lines.slice(1).join(' · ') }; }).filter((a) => a.name);
+      if (head) D.notes.push(`Additional activities — ${head}`); acts.forEach((a) => D.notes.push(`${a.when} · ${a.name}${a.detail ? ' — ' + a.detail : ''}`)); const cnt = /^(\d+)\s+hospitality/i.exec(head); if (cnt && acts.length !== +cnt[1]) issues.push(I('warn', `Page 3 says ${cnt[1]} activities but ${acts.length} could be read.`)); }
+    D.reported = D.reported != null ? D.reported : (D.kpis.find((k) => /events/i.test(k.label)) || {}).n || null;
+  }
+  async function analyzeEventPdf(pages, name, ov, template, existing, hash, others) {
+    const issues = []; const { slides, p2 } = eventPdfSlides(pages, issues); const r = await analyzeSlides(slides, name, ov, template || {}, existing || [], hash, others, 'events');
+    if (r.ds) { eventPdfExtras(r.ds.data, pages, p2, r.issues); r.ds.data.subtitle = (r.ds.data.subtitle || '').replace(/\s+/g, ' '); }
+    return { ...r, issues: [...issues, ...r.issues, I('info', 'Read from the PDF: events, figures and the “Additional Activities” list. The PDF itself is not stored.')] };
+  }
+  LM.international = { TYPES, analyze, val, nepMatch, openWhen, sectionsOf, isEventPdf, analyzeEventPdf };
 })(typeof window !== 'undefined' ? window : globalThis);

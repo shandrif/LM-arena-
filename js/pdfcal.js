@@ -32,5 +32,12 @@
     }
     return { pages, text, numPages: doc.numPages };
   }
-  LM.pdf = { open, render, calendar };
+  /** plain text items with positions (points, top-left origin) for every page */
+  async function text(buf) {
+    const doc = await open(buf); const pages = [];
+    for (let n = 1; n <= doc.numPages; n++) { const page = await doc.getPage(n); const vp = page.getViewport({ scale: 1 }); const tc = await page.getTextContent();
+      pages.push({ n, w: vp.width, h: vp.height, items: tc.items.map((i) => { const [x, y] = vp.convertToViewportPoint(i.transform[4], i.transform[5]); return { s: i.str.replace(/\s+/g, ' ').trim(), x, y, w: i.width, h: Math.abs(i.height) || Math.abs(i.transform[3]) || 10 }; }).filter((i) => i.s) }); }
+    return pages;
+  }
+  LM.pdf = { open, render, calendar, text };
 })();
