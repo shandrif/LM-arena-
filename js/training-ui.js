@@ -65,6 +65,8 @@
       const gbar = (el, labels, vals, color, horiz) => LM.chart(el, { type: 'bar', data: { labels, datasets: [{ data: vals, backgroundColor: color || LM.css('--accent') }] }, options: { indexAxis: horiz ? 'y' : 'x', plugins: { legend: { display: false } }, scales: { [horiz ? 'x' : 'y']: { ticks: { precision: 0 } } } } });
       const parts = (b) => (b ? b.parts.map((p) => h('div', { class: 'sub' }, h('b', {}, p.value), ' ', p.label)) : []);
       const progCard = (t, b, note) => (b ? h('div', { class: 'card' }, h('h3', {}, t), h('div', { style: 'display:flex;gap:18px;align-items:flex-end;flex-wrap:wrap' }, h('div', {}, h('div', { class: 'v', style: 'font-size:30px;font-weight:700' }, b.headline || '–'), h('div', { class: 'sub' }, b.headlineLabel)), h('div', { style: 'display:grid;gap:2px' }, ...parts(b))), b.extra && b.extra.length ? h('div', { class: 'sub', style: 'margin-top:6px' }, b.extra.join(' · ')) : null, note ? h('div', { class: 'sub', style: 'margin-top:6px' }, note) : null) : null);
+      const progCards = (G) => (G.programs && G.programs.length ? G.programs.map((p) => progCard(p.title, p)) : [progCard('Cashier to Barista', G.cashierToBarista), progCard('Successors program', G.successors), progCard('Area Manager development', G.areaManagers)]); // newer decks name their own programme boxes
+      const progLine = (p) => `${p.title}: ${p.headline} ${p.headlineLabel}${p.parts && p.parts.length ? ` (${p.parts.map((x) => `${x.value} ${x.label}`).join(', ')})` : ''}${p.extra && p.extra.length ? ` · ${p.extra.join(' · ')}` : ''}.`;
       function gOverview(ds) {
         const G = ds.data.glance; const el = h('div', {}, h('div', { class: 'grid kpis' }, G.kpis.map((k) => kpi(k.label, k.value, k.sub)), G.k2g && G.k2g.stores != null ? kpi('Know to Grow participation', `${G.k2g.pct}%`, `${G.k2g.stores} of ${G.k2g.total} stores`) : null),
           card('This week in short', h('ul', { class: 'findings' }, [
@@ -75,10 +77,12 @@
             G.cashierToBarista && G.cashierToBarista.parts.length >= 3 ? `Cashier to Barista: ${G.cashierToBarista.parts[1].value} of ${G.cashierToBarista.parts[0].value} certified${G.cashierToBarista.extra[0] ? `, ${G.cashierToBarista.extra[0].toLowerCase()}` : ''}.` : null,
             G.successors && G.successors.parts.length >= 3 ? `Successors program: ${G.successors.parts[1].value} of ${G.successors.parts[0].value} awaiting promotion, ${G.successors.parts[2].value} failed (${G.successors.headline} success).` : null,
             G.areaManagers ? `Area Manager development: ${G.areaManagers.headline} candidates progressing, ${G.areaManagers.parts.slice(1).map((p) => `${p.value} ${p.label}`).join(', ')}.` : null,
+            ...(G.programs || []).map(progLine),
+            ...(G.notes || []),
             G.k2g && G.k2g.zero != null ? `Know to Grow: ${G.k2g.stores} of ${G.k2g.total} stores participated (${G.k2g.pct}%); ${G.k2g.high} managers at ${G.k2g.highAt}% or more and ${G.k2g.zero} at 0%.` : null,
           ].filter(Boolean).map((t) => h('li', {}, t)))),
           h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Trainees onboarded last week, by role', 'c1', 280), chartCard('Where the trainees are now', 'c2', 280)),
-          h('div', { class: 'grid', style: 'grid-template-columns:repeat(auto-fit,minmax(260px,1fr))' }, progCard('Cashier to Barista', G.cashierToBarista), progCard('Successors program', G.successors), progCard('Area Manager development', G.areaManagers)));
+          h('div', { class: 'grid', style: 'grid-template-columns:repeat(auto-fit,minmax(260px,1fr))' }, ...progCards(G)));
         setTimeout(() => { gbar(el.querySelector('#c1'), G.roles.map((r) => r.position), G.roles.map((r) => r.count), null, true); gbar(el.querySelector('#c2'), G.pipeline.map((p) => p.label), G.pipeline.map((p) => p.value), '#2c7a7b', true); }); return el;
       }
       function gOnboarding(ds) {
@@ -90,11 +94,11 @@
       }
       function gVerification(ds) {
         const G = ds.data.glance; const v = G.verification || {}; const el = h('div', {}, h('div', { class: 'grid kpis' }, kpi('Employees verified', v.verified == null ? '–' : v.verified, v.pct != null ? `${v.pct}% overall` : ''), G.kpis[1] ? kpi('Change', G.kpis[1].sub, '') : null, G.kpis[2] ? kpi('Total visits', G.kpis[2].value, G.kpis[2].sub) : null, G.kpis[3] ? kpi('Training verification', G.kpis[3].value, G.kpis[3].sub) : null, v.share ? kpi(`${v.share.position} share`, `${v.share.pct}%`, `of verified staff · ${v.share.avg}% average`) : null),
-          h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Average verification by position (%)', 'c1', 260), h('div', { class: 'grid', style: 'grid-template-columns:1fr' }, progCard('Cashier to Barista', G.cashierToBarista), progCard('Successors program', G.successors), progCard('Area Manager development', G.areaManagers))));
+          h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Average verification by position (%)', 'c1', 260), h('div', { class: 'grid', style: 'grid-template-columns:1fr' }, ...progCards(G))));
         setTimeout(() => { if (v.byPosition && v.byPosition.length) LM.chart(el.querySelector('#c1'), { type: 'bar', data: { labels: v.byPosition.map((x) => x.position), datasets: [{ data: v.byPosition.map((x) => x.avg), backgroundColor: LM.css('--accent') }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100, ticks: { callback: (x) => x + '%' } } } } }); }); return el;
       }
       function gK2g(ds) {
-        const G = ds.data.glance; const k = G.k2g; if (!k) return miss('Know to Grow');
+        const G = ds.data.glance; const k = G.k2g; if (!k) return G.activities && G.activities.length ? h('div', {}, miss('Know to Grow'), card('Weekly activities', LM.table([{ k: 'n', label: '#' }, { k: 'title', label: 'Activity', l: 1 }, { k: 'desc', label: 'What happened', l: 1, cls: 'wrap' }], G.activities, { sort: 'n', dir: 1 }))) : miss('Know to Grow');
         const M = [...k.managers].sort((a, b) => b.pct - a.pct); const el = h('div', {}, h('div', { class: 'grid kpis' }, kpi('Stores participated', `${k.stores} of ${k.total}`, `${k.pct}%${k.date ? ' · ' + k.date.month + ' ' + k.date.day : ''}`), k.high != null ? kpi(`Managers at ${k.highAt}%+`, k.high, `of ${M.length} managers`) : null, k.zero != null ? kpi('Managers at 0%', k.zero, 'no store participated') : null),
           h('div', { class: 'grid half', style: 'margin-bottom:12px' }, h('div', { class: 'card' }, h('h3', {}, 'Participation by manager'), h('div', { class: 'chart', id: 'c1', style: `height:${Math.max(240, M.length * 26 + 50)}px` })), card('Manager table', LM.table([{ k: 'name', label: 'Manager', l: 1 }, { k: 'done', label: 'Stores participated', fmt: num }, { k: 'total', label: 'Stores', fmt: num }, { k: 'pct', label: 'Participation', fmt: (x) => p1(x) }], M, { sort: 'pct' }))),
           card('Weekly activities', LM.table([{ k: 'n', label: '#' }, { k: 'title', label: 'Activity', l: 1 }, { k: 'desc', label: 'What happened', l: 1, cls: 'wrap' }], G.activities, { sort: 'n', dir: 1 })));

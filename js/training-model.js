@@ -13,6 +13,7 @@
   const texts = (s) => s.items.filter((i) => i.kind === 'text');
   const charts = (s) => s.items.filter((i) => i.kind === 'chart');
   const tables = (s) => s.items.filter((i) => i.kind === 'table');
+  const GLANCE = /\bat a glance\b/i; // “Week at a Glance & Onboarding”, “Week (43) L&D at a Glance & Onboarding”
   const NUMLIKE = /^(\d[\d,.]*\s*%?|\d+\s*\/\s*\d+|[A-Z][a-z]{2}\s\d{1,2})$/;
 
   /** big number + its caption (to the right or below), or "36\nTotal trainees" in one box */
@@ -35,7 +36,9 @@
 
   function parsePeriod(slides, name) {
     for (const s of slides) for (const t of texts(s)) { const m = /reporting\s*period\s*:?\s*([A-Za-z]+)\s+(\d{1,2})\s*[–—-]\s*(?:([A-Za-z]+)\s+)?(\d{1,2})\s*,?\s*(\d{4})/i.exec(t.text); if (m && monNo(m[1])) { const y = +m[5]; const m2 = m[3] ? monNo(m[3]) : monNo(m[1]); return { start: iso(y, monNo(m[1]), +m[2]), end: iso(y, m2, +m[4]), label: t.text, from: 'slide' }; } }
-    const f = /W(\d{1,2})[_\s-]*([A-Za-z]{3})[_\s-]*(\d{1,2})\s*[-_–]\s*(\d{1,2})/i.exec(name); if (f && monNo(f[2])) { const y = new Date().getFullYear(); return { start: iso(y, monNo(f[2]), +f[3]), end: iso(y, monNo(f[2]), +f[4]), label: '', weekNo: +f[1], from: 'name' }; }
+    const f = /W(\d{1,2})[_\s-]*([A-Za-z]{3})[_\s-]*(\d{1,2})\s*[-_–]\s*(\d{1,2})/i.exec(name); if (!f && slides.some((s) => GLANCE.test(s.title))) { // no dates anywhere: work the week out from its number (weeks run Sunday–Saturday; week 1 is the week with 1 January)
+      const wn = /\bweek\s*\(?\s*(\d{1,2})\s*\)?/i.exec(slides[0].title) || /\bW(\d{1,2})\b/i.exec(name); if (wn && +wn[1] >= 1 && +wn[1] <= 53) { const y = new Date().getFullYear(); const j1 = new Date(Date.UTC(y, 0, 1)); const end0 = Date.UTC(y, 0, 1 + ((6 - j1.getUTCDay() + 7) % 7)); const end = new Date(end0 + (+wn[1] - 1) * 7 * 86400000); const start = new Date(+end - 6 * 86400000); return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10), label: '', weekNo: +wn[1], from: 'weekno' }; } }
+    if (f && monNo(f[2])) { const y = new Date().getFullYear(); return { start: iso(y, monNo(f[2]), +f[3]), end: iso(y, monNo(f[2]), +f[4]), label: '', weekNo: +f[1], from: 'name' }; }
     return null;
   }
   const dateIn = (txt, year) => { const m = /\b([A-Za-z]{3,9})\.?\s+(\d{1,2})\b/.exec(txt); return m && monNo(m[1]) ? iso(year, monNo(m[1]), +m[2]) : null; };
@@ -43,7 +46,8 @@
 
   /* ---------- "Weekly Training Updates" template: Week at a Glance & Onboarding / Verification & Development / Know to Grow & Weekly Activities ---------- */
   function parseGlance(slides, D, issues, ov) {
-    const s1 = slides.find((s) => /week at a glance/i.test(s.title)); if (!s1) return false;
+    const s1 = slides.find((s) => GLANCE.test(s.title)); if (!s1) return false;
+    if (texts(s1).some((t) => /^employees trained\b/i.test(t.text.trim()) || /^new joiners$/i.test(t.text.trim()))) return parseGlanceV2(s1, slides.find((s) => /verification\s*(&|and)\s*development/i.test(s.title)), slides.find((s) => /week-on-week|weekly activit/i.test(s.title)), D, issues);
     const s2 = slides.find((s) => /verification\s*(&|and)\s*development/i.test(s.title)), s3 = slides.find((s) => /know to grow/i.test(s.title));
     const G = {}; const near = (a, b, dx, dy0, dy1) => Math.abs(a.x - b.x) <= dx && b.y - a.y >= dy0 && b.y - a.y <= dy1;
     const isNum = (t) => /^\d[\d,.]*\s*%?$/.test(t.text.trim());
@@ -87,6 +91,69 @@
     return true;
   }
 
+
+  /* ---------- newer "Weekly Training Updates" layout: “Week (N) L&D at a Glance & Onboarding” / “Verification & Development” / “Week-on-Week Summary & Weekly Activities”.
+     It fills exactly the same fields as the older layout, so every tab looks the same. ---------- */
+  function parseGlanceV2(s1, s2, s3, D, issues) {
+    const G = { programs: [], notes: [] }; const nv = (v) => { const n = Number(String(v).replace(/[,%\s]/g, '')); return isFinite(n) && String(v).trim() !== '' ? n : null; };
+    const cl = (x) => String(x == null ? '' : x).replace(/\s+/g, ' ').trim(); const isNum = (t) => /^\d[\d,.]*\s*%?$/.test(t.text.trim()); const val = (t) => (/^\d[\d,]*$/.test(t.text.trim()) ? nv(t.text) : cl(t.text));
+    const T1 = texts(s1);
+    // headline tiles
+    const tiles = T1.filter((t) => (t.fs || 0) >= 24 && isNum(t) && t.y > 0.1 && t.y < 0.3).sort((a, b) => a.x - b.x).map((t) => { const col = T1.filter((u) => u !== t && Math.abs(u.x - t.x) < 0.04 && u.y > t.y && u.y < t.y + 0.2).sort((a, b) => a.y - b.y); return { value: t.text.trim(), label: col[0] ? cl(col[0].text) : '', sub: col[1] ? cl(col[1].text) : '' }; });
+    const tile = (re) => tiles.find((k) => re.test(k.label)); const nj = tile(/new joiners|onboarded/i), et = tile(/employees trained/i), ev = tile(/employees verified/i), tv = tile(/total visits/i), vr = tile(/verification rate/i);
+    const trainPct = et ? (/(\d+%)\s*training verification/i.exec(et.sub) || [])[1] : null; const numo = vr ? (/NUMO\s*(\d+%)/i.exec(vr.sub) || [])[1] : null;
+    G.kpis = [nj && { label: 'Onboarded & upcoming', value: nj.value, sub: nj.sub }, ev && { label: 'Employees verified', value: ev.value, sub: ev.sub }, tv && { label: 'Total visits', value: tv.value, sub: tv.sub }, (trainPct || vr) && { label: 'Training verification', value: trainPct || (vr && vr.value), sub: vr ? `Employee ${vr.value}${numo ? ` · NUMO ${numo}` : ''}` : '' }, et && { label: 'Employees trained', value: et.value, sub: et.sub }].filter(Boolean);
+    // trainees last week, by role
+    const rh = T1.find((t) => /trainees last week by role/i.test(t.text)); G.rolesTotal = rh ? nv((/\((\d+)\)/.exec(rh.text) || [])[1]) : null;
+    const left = T1.filter((t) => t.x < 0.6 && rh && t.y > rh.y + 0.02 && (t.fs || 0) > 0); const up = left.find((t) => /^upcoming\s+\d+/i.test(t.text.trim()));
+    const names = left.filter((t) => (t.fs || 0) >= 9.5 && !isNum(t) && t.x < 0.2 && t !== up).sort((a, b) => a.y - b.y);
+    G.roles = names.map((nm, i) => { const cnt = left.find((u) => isNum(u) && Math.abs(u.y - nm.y) < 0.012 && u.x > nm.x); const nextY = names[i + 1] ? names[i + 1].y : up ? up.y : 1; const note = left.filter((u) => (u.fs || 0) < 9.5 && !isNum(u) && u !== up && u.y > nm.y && u.y < nextY - 0.005 && Math.abs(u.x - nm.x) < 0.06)[0]; return { position: cl(nm.text), count: cnt ? nv(cnt.text) : null, note: note ? cl(note.text) : '' }; });
+    // pipeline: this layout has no separate box, so it is read from the role notes (in training / certified)
+    const inTr = sum(G.roles.filter((r) => /\b(ongoing|in)\s+training\b/i.test(r.note) && !/certified/i.test(r.note)), (r) => r.count), cert = sum(G.roles.filter((r) => /certified/i.test(r.note)), (r) => r.count);
+    G.pipeline = [{ value: inTr, label: 'In training' }, { value: cert, label: 'Certified / deploying' }].filter((x) => x.value > 0);
+    if (G.pipeline.length) issues.push(I('info', 'This layout has no pipeline box, so “In training” and “Certified / deploying” were counted from the notes under each role.'));
+    // who joins next
+    const chips = T1.filter((t) => t.x >= 0.6 && /^[A-Za-z]{3}\s*\d{1,2}$/.test(t.text.trim())).map((dt) => { const m = /^([A-Za-z]{3})\s*(\d{1,2})$/.exec(dt.text.trim()); const tx = T1.find((u) => u !== dt && u.x > dt.x && Math.abs(u.y - dt.y) < 0.03); return { mon: m[1].toUpperCase(), mo: monNo(m[1]), day: +m[2], text: tx ? cl(tx.text).replace(/\s*\b(tomorrow|today)\b/i, '') : '' }; }).filter((c) => c.mo).sort((a, b) => a.mo * 100 + a.day - (b.mo * 100 + b.day));
+    if (chips.length) { const c0 = chips[0]; const a = /^(\d+)\s+(.+?)s?\s+join/i.exec(c0.text); G.joining = { month: c0.mon, day: c0.day, text: chips.map((c, i) => (i ? `${c.text} (${c.mon[0]}${c.mon.slice(1).toLowerCase()} ${c.day})` : c.text)).join(' · '), items: a ? [{ position: a[2].trim(), count: +a[1] }] : [] }; }
+    const upM = up ? /^upcoming\s+(\d+)\s*:\s*(.*)$/i.exec(cl(up.text)) : null; G.upcoming = upM ? { total: +upM[1], text: upM[2], groups: upM[2].split('·').map((x) => { const m = /^\s*(\d+)\s+(.+?)s?\s*$/.exec(x); return m ? { position: m[2].trim(), count: +m[1] } : null; }).filter(Boolean) } : null;
+    const eh = T1.find((t) => /^employees trained\s*\(\d+\)/i.test(t.text.trim())); const trained = eh ? { total: nv((/\((\d+)\)/.exec(eh.text) || [])[1]), parts: T1.filter((t) => t.x >= 0.6 && (t.fs || 0) >= 16 && isNum(t) && t.y > eh.y).sort((a, b) => a.x - b.x).map((n) => { const lb = T1.filter((u) => Math.abs(u.x - n.x) < 0.04 && u.y > n.y && u.y < n.y + 0.1 && (u.fs || 0) <= 10).sort((a, b) => a.y - b.y)[0]; return { value: nv(n.text), label: lb ? cl(lb.text) : '' }; }) } : null; const hot = T1.find((t) => /hot cookie/i.test(t.text));
+    // slide 2: verification and the three programme boxes
+    if (s2) { const T2 = texts(s2); const big = T2.find((t) => (t.fs || 0) >= 28 && /verified/i.test(t.text)); const em = big ? /(\d+)\s*verified\s*[·•]\s*(\d+)%/i.exec(big.text) : null; const ch = charts(s2)[0]; const sh = T2.find((t) => /of verified staff are/i.test(t.text)); const sm = sh ? /(\d+)%\s+of verified staff are\s+(\w+)\s*\((\d+)%/i.exec(sh.text) : null;
+      G.verification = { verified: em ? +em[1] : null, pct: em ? +em[2] : null, byPosition: ch ? ch.cats.map((c, i) => ({ position: cl(c), avg: ch.series[0].values[i] })) : [], share: sm ? { pct: +sm[1], position: sm[2], avg: +sm[3] } : null, text: big ? cl(big.text) : '' };
+      const heads = T2.filter((t) => (t.fs || 0) === 12 && t.x >= 0.45).sort((a, b) => a.y - b.y);
+      heads.forEach((h0, i) => { const end = heads[i + 1] ? heads[i + 1].y - 0.01 : 1; const items = T2.filter((t) => t.x >= 0.45 && (t.fs || 0) > 0 && t.y >= h0.y - 0.01 && t.y < end && t !== h0); const hl = items.find((t) => Math.abs(t.x - 0.495) < 0.02 && (t.fs || 0) >= 19); const hll = hl ? items.filter((t) => Math.abs(t.x - hl.x) < 0.02 && (t.fs || 0) <= 9.5 && t.y > hl.y).sort((a, b) => a.y - b.y)[0] : null;
+        const parts = items.filter((t) => t.x >= 0.62 && (t.fs || 0) >= 16 && (t.fs || 0) <= 20).sort((a, b) => a.x - b.x).map((v) => { const lb = items.filter((u) => Math.abs(u.x - v.x) < 0.03 && (u.fs || 0) <= 9.5 && u.y > v.y).sort((a, b) => a.y - b.y)[0]; return { value: val(v), label: lb ? cl(lb.text) : '' }; });
+        const ex = items.find((t) => Math.abs(t.y - h0.y) < 0.02 && t.x > h0.x + 0.05 && (t.fs || 0) <= 9.5); G.programs.push({ title: cl(h0.text), headline: hl ? cl(hl.text) : '–', headlineLabel: hll ? cl(hll.text) : '', parts, extra: ex ? [cl(ex.text)] : [] }); }); }
+    // slide 3: week on week, takeaways, weekly activities
+    if (s3) { const T3 = texts(s3); const wh = T3.find((t) => /week-on-week/i.test(t.text)); const kt = T3.find((t) => /^key takeaways/i.test(t.text.trim())); const wm = wh ? /\((\w+)\s*[→>-]+\s*(\w+)\)/.exec(wh.text) : null;
+      const rows = wh && kt ? T3.filter((t) => t.x < 0.2 && (t.fs || 0) >= 9.5 && (t.fs || 0) <= 10.5 && t.y > wh.y + 0.05 && t.y < kt.y - 0.01).sort((a, b) => a.y - b.y).map((l) => { const at = (x) => T3.find((u) => Math.abs(u.x - x) < 0.02 && Math.abs(u.y - l.y) < 0.012); const pv = at(0.305), cu = at(0.365), ch2 = at(0.42); return { label: cl(l.text), prev: pv ? cl(pv.text) : '', curr: cu ? cl(cu.text) : '', change: ch2 ? cl(ch2.text) : '' }; }) : [];
+      G.wow = { from: wm ? wm[1] : '', to: wm ? wm[2] : '', rows };
+      if (rows.length) G.notes.push(`Week on week${wm ? ` (${wm[1]} → ${wm[2]})` : ''}: ${rows.map((r) => `${r.label.toLowerCase()} ${r.prev} → ${r.curr} (${r.change})`).join('; ')}.`);
+      if (kt) T3.filter((t) => t.x >= 0.07 && t.x < 0.5 && t.y > kt.y + 0.02 && (t.fs || 0) > 0).sort((a, b) => a.y - b.y).forEach((t) => G.notes.push(cl(t.text)));
+      const marks = T3.filter((t) => /^\d{1,2}$/.test(t.text.trim()) && t.x >= 0.5 && (t.fs || 0) >= 8.5 && (t.fs || 0) <= 9.5).sort((a, b) => a.y - b.y || a.x - b.x);
+      G.activities = marks.map((m) => { const title = T3.find((u) => u !== m && u.x > m.x && u.x - m.x < 0.06 && Math.abs(u.y - m.y) < 0.015); const desc = T3.find((u) => u.x > m.x && u.x - m.x < 0.06 && u.y > m.y + 0.02 && u.y < m.y + 0.07); return { n: +m.text, title: title ? cl(title.text) : '', desc: desc ? cl(desc.text) : '' }; }).sort((a, b) => a.n - b.n); }
+    else G.activities = [];
+    if (trained) G.notes.push(`${trained.total} employees trained (${trained.parts.map((p) => `${p.value} ${p.label}`).join(', ')})${hot ? `. ${cl(hot.text)}` : ''}.`);
+    if (G.upcoming) G.notes.push(`Upcoming ${G.upcoming.total}: ${G.upcoming.text}.`);
+    D.glance = G;
+    // ---- checks: the deck's own figures must agree with each other ----
+    const k = G.kpis; if (k.length < 5) issues.push(I('warn', `Expected 5 headline figures on the first slide but found ${k.length}.`));
+    const rs = sum(G.roles, (r) => r.count); if (!G.roles.length) issues.push(I('warn', 'The trainees-by-role list on the first slide could not be read.')); else if (G.rolesTotal != null && rs !== G.rolesTotal) issues.push(I('warn', `Trainees by role add up to ${rs} but the slide says ${G.rolesTotal}.`));
+    const nowUp = nj ? /(\d+)\s*now\s*[·•]\s*(\d+)\s*upcoming/i.exec(nj.sub) : null; if (nowUp) { if (G.rolesTotal != null && +nowUp[1] !== G.rolesTotal) issues.push(I('warn', `The first tile says ${nowUp[1]} now but the role list says ${G.rolesTotal}.`)); if (nj && +nj.value !== +nowUp[1] + +nowUp[2]) issues.push(I('warn', `New joiners show ${nj.value} but ${nowUp[1]} + ${nowUp[2]} = ${+nowUp[1] + +nowUp[2]}.`)); if (G.upcoming && G.upcoming.total !== +nowUp[2]) issues.push(I('warn', `The first tile says ${nowUp[2]} upcoming but the box says ${G.upcoming.total}.`)); }
+    if (G.upcoming && G.upcoming.groups.length && sum(G.upcoming.groups, (g) => g.count) !== G.upcoming.total) issues.push(I('warn', `Upcoming says ${G.upcoming.total} but its parts add up to ${sum(G.upcoming.groups, (g) => g.count)}.`));
+    const vis = tv ? /(\d+)\s+store\s*[·•]\s*(\d+)/i.exec(tv.sub) : null; if (vis && +tv.value !== +vis[1] + +vis[2]) issues.push(I('warn', `Total visits show ${tv.value} but ${vis[1]} + ${vis[2]} = ${+vis[1] + +vis[2]}.`));
+    if (G.verification && ev && G.verification.verified != null && +ev.value !== G.verification.verified) issues.push(I('warn', `Employees verified is ${ev.value} on the first slide but ${G.verification.verified} on the second.`));
+    if (trained && trained.parts.length && sum(trained.parts, (p) => p.value) !== trained.total) issues.push(I('warn', `Employees trained says ${trained.total} but its parts add up to ${sum(trained.parts, (p) => p.value)}.`));
+    const hc = hot ? /\((\d+)\).*\((\d+)\)/.exec(hot.text) : null; if (hc && trained && +hc[1] + +hc[2] !== trained.total) issues.push(I('warn', `Hot Cookie: ${hc[1]} online + ${hc[2]} on-floor ≠ ${trained.total} employees trained.`));
+    G.programs.forEach((pr) => { const nums2 = pr.parts.map((x) => x.value); if (/numo/i.test(pr.title) && nums2.length >= 3 && typeof nums2[0] === 'number' && nums2[0] !== nums2[1] + nums2[2]) issues.push(I('warn', `${pr.title}: ${nums2[0]} employees but ${nums2[1]} verified + ${nums2[2]} pending.`)); if (/numo/i.test(pr.title) && nums2.length >= 3 && nums2[0] && Math.round((nums2[1] / nums2[0]) * 100) !== nv(pr.headline)) issues.push(I('warn', `${pr.title}: the rate shows ${pr.headline} but ${nums2[1]} ÷ ${nums2[0]} = ${Math.round((nums2[1] / nums2[0]) * 100)}%.`)); });
+    if (G.wow) G.wow.rows.forEach((r) => { const a = nv(r.prev), b = nv(r.curr), c = nv(String(r.change).replace(/[−–]/g, '-').replace(/pt/i, '')); if (a != null && b != null && c != null && b - a !== c) issues.push(I('warn', `Week on week “${r.label}”: ${r.prev} → ${r.curr} is ${b - a >= 0 ? '+' : ''}${b - a} but the slide says ${r.change}.`)); });
+    if (ev && G.wow) { const w = G.wow.rows.find((r) => /employees verified/i.test(r.label)); if (w && +w.curr !== +ev.value) issues.push(I('warn', `Employees verified is ${ev.value} on the first slide but ${w.curr} in the week-on-week table.`)); }
+    if (!s2) issues.push(I('warn', 'The “Verification & Development” slide was not found.')); if (!s3) issues.push(I('warn', 'The “Week-on-Week Summary & Weekly Activities” slide was not found.'));
+    if (!G.activities.length) issues.push(I('warn', 'No weekly activities were found on the last slide.'));
+    issues.push(I('info', 'This week’s deck has no Know to Grow, Successors or Area Manager figures, so those boxes are left out instead of repeating last week’s.'));
+    return true;
+  }
+
   const guessEnd = (D, year, existing) => { const last = (existing || []).map((e) => e.end).sort().pop(); if (last) return new Date(Date.parse(last) + 7 * 86400000).toISOString().slice(0, 10); const g = D.glance && D.glance.k2g && D.glance.k2g.date; return g && monNo(g.month) ? iso(year, monNo(g.month), g.day) : undefined; };
   async function analyze(buf, name, ov, template, existing, hash) {
     ov = ov || {}; existing = existing || []; template = template || {}; const issues = []; let slides;
@@ -94,7 +161,7 @@
     if (!slides.length) return { ds: null, issues: [I('error', 'The presentation has no slides.')] };
     const D = { slides: slides.map((s) => ({ n: s.n, title: s.title, notes: s.notes, pics: s.pics, items: s.items })) };
     const per = parsePeriod(slides, name); if (per) D.period = per;
-    const wnFile = /W(\d{1,2})/i.exec(name); D.weekNo = wnFile ? +wnFile[1] : null;
+    const wnFile = /W(\d{1,2})/i.exec(name); D.weekNo = wnFile ? +wnFile[1] : per && per.weekNo ? per.weekNo : null;
     const found = []; const by = (re) => slides.filter((s) => re.test(s.title));
     const year = per ? +per.end.slice(0, 4) : new Date().getFullYear();
 
@@ -143,9 +210,10 @@
       const m4 = /(\d+)\s+visits/i.exec(all); if (m4 && D.visits && D.visits.total != null && +m4[1] !== D.visits.total) issues.push(I('warn', `Key takeaways say ${m4[1]} visits but the visits slide shows ${D.visits.total}.`));
       const bp = /baristas?\s+are\s+(\d+)%/i.exec(all); if (bp && D.verification) { const b = D.verification.rows.find((r) => /barista/i.test(r.position)); const t = D.verification.total; if (b && t && Math.abs((b.verified / t) * 100 - +bp[1]) > 1) issues.push(I('warn', `Key takeaways say baristas are ${bp[1]}% of verified staff but ${b.verified} ÷ ${t} = ${((b.verified / t) * 100).toFixed(0)}%.`)); }
       k.pairs.forEach((p) => { if (/employee verification/i.test(p.label) && D.verification && D.verification.pctClaimed != null && num(p.value) !== D.verification.pctClaimed) issues.push(I('warn', `Key takeaways say employee verification ${p.value} but the verification slide shows ${D.verification.pctClaimed}%.`)); if (/training verification/i.test(p.label)) issues.push(I('info', `“${p.label}: ${p.value}” on the takeaways slide has no matching figure on another slide.`)); if (/total visits/i.test(p.label) && D.visits && num(p.value) !== D.visits.total) issues.push(I('warn', `Key takeaways say ${p.value} total visits but the visits slide shows ${D.visits.total}.`)); }); }
-    if (slides.some((s) => /week at a glance/i.test(s.title))) { issues.length = 0; Object.keys(D).filter((k) => !['slides', 'period', 'weekNo'].includes(k)).forEach((k) => delete D[k]); }
+    if (slides.some((s) => GLANCE.test(s.title))) { issues.length = 0; Object.keys(D).filter((k) => !['slides', 'period', 'weekNo'].includes(k)).forEach((k) => delete D[k]); }
     const isGlance = parseGlance(slides, D, issues, ov); D.found = isGlance ? ['glance'] : [...new Set(found)];
     // general checks
+    if (per && per.from === 'weekno') issues.push(I('info', `The deck gives only the week number (${per.weekNo}), so the reporting week was worked out as ${per.start} → ${per.end} (weeks run Sunday to Saturday).`));
     if (!per) issues.push({ level: 'error', msg: 'The reporting period could not be found on the title slide or in the file name. Enter the week-ending date.', fix: { type: 'asOf', id: 'date', kind: 'date', label: 'Use this date as week end', value: guessEnd(D, year, existing) } });
     let start = per ? per.start : null, end = per ? per.end : null; if (ov.asOf && ov.asOf.date) { end = ov.asOf.date; start = new Date(Date.parse(end) - 6 * 86400000).toISOString().slice(0, 10); D.period = { start, end, label: '', from: 'manual' }; issues.splice(issues.findIndex((i) => /reporting period could not/.test(i.msg)), 1); }
     if (per) { const len = days(per.start, per.end) + 1; if (len !== 7) issues.push(I('warn', `The reporting period is ${len} days (${per.start} → ${per.end}), not 7.`)); const fn = /W(\d{1,2})[_\s-]*([A-Za-z]{3})[_\s-]*(\d{1,2})\s*[-_–]\s*(\d{1,2})/i.exec(name); if (fn && monNo(fn[2]) && (monNo(fn[2]) !== +per.start.slice(5, 7) || +fn[3] !== +per.start.slice(8, 10) || +fn[4] !== +per.end.slice(8, 10))) issues.push(I('warn', `The file name says ${fn[2].toUpperCase()} ${fn[3]}-${fn[4]} but the title slide says ${per.start} → ${per.end}.`)); }
