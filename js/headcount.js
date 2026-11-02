@@ -21,7 +21,7 @@
     const per = period(String((g[0] || [])[0] || '')) || period((wb.SheetNames.includes('Summary') ? XLSX.utils.sheet_to_json(wb.Sheets.Summary, { header: 1, defval: null }).flat().map(String).find((x) => /period/i.test(x)) : '') || '');
     const rows = []; let grand = null; let checkRow = null;
     g.slice(hi + 1).forEach((r) => { const nm = String((r && r[0]) || '').trim(); if (!nm) return; if (/^grand total/i.test(nm)) { grand = +r[col.total] || 0; return; } if (/^check/i.test(nm)) { checkRow = r[col.total]; return; }
-      const roles = {}; Object.keys(ROLE_COLS).forEach((k) => (roles[k] = col[k] >= 0 ? +r[col[k]] || 0 : 0)); const code = CODE.exec(nm); rows.push({ loc: nm, code: code ? 'B' + code[1] : null, roles, total: +r[col.total] || 0 }); });
+      const roles = {}; Object.keys(ROLE_COLS).forEach((k) => (roles[k] = col[k] >= 0 ? +r[col[k]] || 0 : 0)); const code = CODE.exec(nm); const rs = Object.values(roles).reduce((t, x) => t + x, 0); rows.push({ loc: nm, code: code ? 'B' + code[1] : null, roles, total: +r[col.total] || rs }); }); // an empty Total cell (formula without a saved value) is worked out from the roles
     return { period: per, rows, grand, checkRow };
   }
 
@@ -29,23 +29,23 @@
   function link(rows, stores, map) {
     const keys = new Set(stores.map((s) => s.key)); const byCode = rows.filter((r) => r.code && keys.has(r.code)); const taken = new Set(byCode.map((r) => r.code));
     const pending = []; const skipped = [];
-    rows.forEach((r) => { if (r.code && keys.has(r.code)) { r.key = r.code; return; }
+    rows.forEach((r) => { if (!r.total) { skipped.push({ loc: r.loc, total: 0, why: 'no staff' }); return; } if (r.code && keys.has(r.code)) { r.key = r.code; return; }
       if (map && Object.prototype.hasOwnProperty.call(map, r.loc)) { if (map[r.loc]) { r.key = map[r.loc]; taken.add(r.key); } else skipped.push({ loc: r.loc, total: r.total, why: 'not a store' }); return; }
       if (NOT_STORE.test(r.loc) && !r.code) { skipped.push({ loc: r.loc, total: r.total, why: 'not a store' }); return; }
       if (r.code) { r.key = r.code; return; } // a store that has no sales in this report: kept for later
       pending.push(r); });
-    pending.forEach((r) => { const c = stores.filter((s) => !taken.has(s.key)).map((s) => ({ s, sc: score(r.loc, s.name) })).sort((a, b) => b.sc - a.sc)[0]; r.suggest = c && c.sc >= 0.8 ? c.s.key : ''; r.alt = c ? c.sc : 0; });
+    pending.forEach((r) => { const c = stores.map((s) => ({ s, sc: score(r.loc, s.name) })).sort((a, b) => b.sc - a.sc)[0]; r.suggest = c && c.sc >= 0.8 ? c.s.key : ''; r.alt = c ? c.sc : 0; });
     return { linked: rows.filter((r) => r.key), pending, skipped, taken };
   }
 
   function mapDialog(pending, stores, taken) {
     return new Promise((resolve) => {
       const ov = h('div', { class: 'overlay', style: 'z-index:90' }); const sels = [];
-      const opts = (r) => [h('option', { value: '' }, 'Not a store (skip)'), ...stores.filter((s) => !taken.has(s.key)).sort((a, b) => (a.key === r.suggest ? -1 : b.key === r.suggest ? 1 : a.name.localeCompare(b.name))).map((s) => h('option', { value: s.key, selected: s.key === r.suggest }, s.name))];
+      const opts = (r) => [h('option', { value: '' }, 'Not a store (skip)'), ...stores.slice().sort((a, b) => (a.key === r.suggest ? -1 : b.key === r.suggest ? 1 : a.name.localeCompare(b.name))).map((s) => h('option', { value: s.key, selected: s.key === r.suggest }, taken.has(s.key) ? `${s.name} (already linked: staff are added together)` : s.name))];
       const rows = pending.map((r) => { const sel = h('select', { class: 'sel', style: 'max-width:260px' }, ...opts(r)); sels.push(sel); return h('tr', {}, h('td', { class: 'l' }, r.loc), h('td', {}, String(r.total)), h('td', { class: 'l' }, sel)); });
       const done = (ok) => { ov.remove(); resolve(ok ? Object.fromEntries(pending.map((r, i) => [r.loc, sels[i].value])) : null); };
       ov.append(h('div', { class: 'modal', style: 'max-width:760px' }, h('div', { class: 'mh' }, h('h3', {}, 'Link these locations to Sales stores')),
-        h('div', { class: 'mb' }, h('p', {}, `${pending.length} location(s) in the headcount file have no store code that matches the Sales report. Check the suggested store for each one (or choose “Not a store”). Your choice is remembered for next time.`),
+        h('div', { class: 'mb' }, h('p', {}, `${pending.length} location(s) in the headcount file have no store code that matches the Sales report. Check the suggested store for each one (or choose “Not a store”). A store that already has another location can be chosen again: the staff of both are added together. Your choice is remembered for next time.`),
           h('div', { style: 'max-height:50vh;overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Location in the headcount file', 'Staff', 'Sales store'].map((t, i) => h('th', { class: i === 1 ? '' : 'l' }, t)))), h('tbody', {}, rows)))),
         h('div', { class: 'mf' }, h('div', { class: 'spacer' }), h('button', { class: 'btn', onclick: () => done(false) }, 'Cancel'), h('button', { class: 'btn primary', onclick: () => done(true) }, 'Continue'))));
       document.body.append(ov);
@@ -64,13 +64,14 @@
     const seen = {}; L.linked.forEach((r) => { (seen[r.key] = seen[r.key] || []).push(r); }); const dupK = Object.entries(seen).filter(([, a]) => a.length > 1); dupK.forEach(([k, a]) => issues.push(I('warn', `${a.length} locations are linked to the same store (${k}): ${a.map((x) => x.loc).join('; ')}. Their staff are added together.`)));
     const sales = ctx.ds; if (P.period && sales.end && (P.period.start > sales.end || P.period.end < sales.start)) issues.push(I('info', `The headcount is for ${P.period.label} but the Sales report covers ${sales.start} → ${sales.end}. Staff productivity then divides the sales of that period by the team as it stands in the headcount file.`)); if (!P.period) issues.push(I('warn', 'The period of the headcount file could not be read.'));
     const noHc = stores.filter((s) => !seen[s.key]); if (noHc.length) issues.push(I('info', `${noHc.length} Sales store(s) have no headcount and show “–”: ${noHc.slice(0, 6).map((s) => s.name).join('; ')}${noHc.length > 6 ? '; …' : ''}.`));
-    if (L.skipped.length) issues.push(I('info', `${L.skipped.length} location(s) were left out (factories, head office, events, etc.): ${L.skipped.slice(0, 5).map((s) => s.loc).join('; ')}${L.skipped.length > 5 ? '; …' : ''}.`));
+    const zero = P.rows.filter((r) => !r.total); if (zero.length) issues.push(I('warn', `${zero.length} location(s) have 0 staff in the file and are left out: ${zero.slice(0, 6).map((r) => r.loc).join('; ')}. The counts come from the “Matrix Location” column of the Data sheet, so a location renamed only in “By Branch” shows 0; rename it in the Data sheet too, or link the staff to the right location.`));
+    const left = L.skipped.filter((x) => x.why !== 'no staff'); if (left.length) issues.push(I('info', `${left.length} location(s) were left out (factories, head office, events, etc.): ${left.slice(0, 5).map((x) => x.loc).join('; ')}${left.length > 5 ? '; …' : ''}.`));
     issues.push(I('info', 'Only the counts per location are read. Individual employees (sheet “Data”) are not opened or stored.'));
     const staff = L.linked.reduce((s, r) => s + r.total, 0);
     await new Promise((resolve) => { LM.review({ title: `Review before processing: ${rf.name}`, facts: [['Period', P.period ? P.period.label : '–'], ['Stores linked', Object.keys(seen).length], ['Staff in those stores', staff], ['Left out', L.skipped.length]], issues, approveLabel: ctx.existing ? 'Approve & replace headcount' : 'Approve & process',
       onCancel: () => resolve(),
       onApprove: async () => { const merged = Object.entries(seen).map(([k, a]) => ({ key: k, name: a.map((x) => x.loc).join(' + '), total: a.reduce((s, x) => s + x.total, 0), roles: Object.fromEntries(Object.keys(ROLE_COLS).map((r) => [r, a.reduce((s, x) => s + x.roles[r], 0)])) }));
-        if (ctx.existing) { await LM.db.put('history', { ...ctx.existing, id: LM.uid(), replacedAt: new Date().toISOString() }); await LM.db.del('datasets', ctx.existing.id); }
+        for (const old of (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount')) { await LM.db.put('history', { ...old, id: LM.uid(), replacedAt: new Date().toISOString() }); await LM.db.del('datasets', old.id); } // one headcount per week
         const rec = { id: LM.uid(), dept: 'headcount', type: 'headcount', start: P.period ? P.period.start : sales.start, end: P.period ? P.period.end : sales.end, fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), data: { period: P.period ? P.period.label : '', rows: merged, skipped: L.skipped } };
         await LM.db.put('datasets', rec); await LM.db.put('templates', tpl); LM.toast('Headcount saved'); if (ctx.done) await ctx.done(); setTimeout(resolve, 50); } }); });
   }
