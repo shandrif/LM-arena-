@@ -48,7 +48,7 @@
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No wastage report uploaded yet'), h('p', { class: 'sub' }, 'Drop the weekly Waste Report (.xlsx) here, or use the Upload button.'),
           h('p', { class: 'sub' }, 'Expected: sheet “Products statement” (Code, Stock list, U/M, Quantity, Unit Pr, Wastage Value, Document date, Document type, Write-off storage, Category). Optional “Sheet2” links storages to branches.')));
         const c = calc(ds); c.prev = prevOf(ds);
-        const tabs = ['Branches', 'Items', 'Days', 'Uploads'];
+        const tabs = ['Branches', 'Items', 'Days', 'Categories', 'Uploads'];
         const st = h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t)));
         const ns = c.netSources; const unm = c.branches.filter((b) => /^U:/.test(b.key)).length;
         const notes = [];
@@ -56,7 +56,7 @@
         if (unm) notes.push(`${unm} storage(s) are not linked to a branch.`);
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Report ${ds.start} → ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`),
           st, notes.length ? h('div', { class: 'sub', style: 'margin-bottom:8px' }, notes.join(' ')) : null,
-          { Overview: overview, Branches: branches, Items: items, Days: days, Uploads: uploads }[sub](ds, c));
+          { Overview: overview, Branches: branches, Items: items, Days: days, Categories: categories, Uploads: uploads }[sub](ds, c));
       }
       const kpi = (l, v, d) => h('div', { class: 'card kpi' }, h('div', { class: 'l' }, l), h('div', { class: 'v' }, v), h('div', { class: 'd' }, d));
       const catColors = () => ['#7a4a2b', '#2c7a7b', '#c2851f', '#5b6fb5', '#a8456b', '#6b8e3d'];
@@ -111,6 +111,19 @@
         const cols = [{ k: 'day', label: 'Date', l: 1 }, { k: 'dow', label: 'Day', l: 1 }, { k: 'value', label: 'Waste value', fmt: num }, ...c.cats.map((k) => ({ k: 'c_' + k, label: k, fmt: num }))];
         const el = h('div', {}, h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'chart', id: 'c1' })), LM.table(cols, rows, { sort: 'day', dir: 1 }));
         setTimeout(() => dailyStack(el.querySelector('#c1'), c)); return el;
+      }
+      function categories(ds, c) {
+        const p = c.prev; const rows = c.catArr.map((k) => { const pk = p ? p.catArr.find((x) => x.name === k.name) : null; return { name: k.name, value: k.value, share: k.share, pct: k.pct, lines: k.lines, nItems: c.items.filter((i) => i.category === k.name).length, nBranches: c.branches.filter((b) => b.byCat[k.name]).length, perDay: c.days.length ? k.value / c.days.length : null, wow: pk ? wow(k.value, pk.value) : null }; });
+        const cols = [{ k: 'name', label: 'Category', l: 1, cls: 'wrap' }, { k: 'value', label: 'Waste value', fmt: num }, { k: 'share', label: 'Share of waste', fmt: pct0 }, { k: 'pct', label: '% of net sales', fmt: (v) => pc(v) }, { k: 'lines', label: 'Lines', fmt: num }, { k: 'nItems', label: 'Items', fmt: num }, { k: 'nBranches', label: 'Branches', fmt: num }, { k: 'perDay', label: 'Avg / day', fmt: num }, ...(p ? [{ k: 'wow', label: 'vs prev week', fmt: (v) => costDelta(v) }] : [])];
+        const col = catColors();
+        const top = h('div', { class: 'grid', style: 'grid-template-columns:repeat(auto-fit,minmax(300px,1fr));margin-top:12px' }, c.catArr.map((k, ci) => { const its = c.items.filter((i) => i.category === k.name).slice(0, 5);
+          return h('div', { class: 'card' }, h('h3', { style: `border-left:4px solid ${col[ci % col.length]};padding-left:8px` }, `Top items · ${k.name}`), h('ul', { class: 'findings' }, its.map((i) => h('li', {}, h('b', {}, i.name), ` · SAR ${num(i.value)} (${pct0(k.value ? i.value / k.value : 0)} of ${k.name.toLowerCase()})`))), h('div', { class: 'sub' }, `${num(c.items.filter((i) => i.category === k.name).length)} items in total`)); }));
+        const el = h('div', {}, h('div', { class: 'grid half', style: 'margin-bottom:12px' }, h('div', { class: 'card' }, h('h3', {}, 'Waste value by category (SAR)'), h('div', { class: 'chart', id: 'c1', style: 'height:260px' })), h('div', { class: 'card' }, h('h3', {}, 'Share of waste'), h('div', { class: 'chart', id: 'c2', style: 'height:260px' }))),
+          h('div', { class: 'tools' }, h('span', { class: 'sub' }, `${c.catArr.length} categories · ${num(c.total)} SAR in total${c.netPct != null ? ` · ${pc(c.netPct)} of net sales` : ''}`), h('button', { class: 'btn small', onclick: () => LM.csv(cols, rows, `wastage-categories-${ds.start}.csv`) }, 'Export CSV')), LM.table(cols, rows, { sort: 'value' }), top);
+        setTimeout(() => {
+          LM.chart(el.querySelector('#c1'), { type: 'bar', data: { labels: rows.map((r) => r.name), datasets: [{ data: rows.map((r) => r.value), backgroundColor: rows.map((r, i) => col[i % col.length]) }] }, options: { indexAxis: 'y', plugins: { legend: { display: false } }, scales: { x: { ticks: { callback: (v) => compact(v) } } } } });
+          LM.chart(el.querySelector('#c2'), { type: 'pie', data: { labels: rows.map((r) => r.name), datasets: [{ data: rows.map((r) => r.value), backgroundColor: rows.map((r, i) => col[i % col.length]) }] }, options: { plugins: { legend: { position: 'bottom' } } } });
+        }); return el;
       }
       function uploads() {
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded wastage reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Period', 'File', 'Uploaded', 'Lines', ''].map((t) => h('th', { class: 'l' }, t)))),
