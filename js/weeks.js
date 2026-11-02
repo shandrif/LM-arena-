@@ -48,8 +48,9 @@
     W.ready = true;
   });
   // a report whose own dates point to a different week than the one you are in: ask before saving so two weeks never get mixed by accident
+  /* a headcount is attached to the week you are in on purpose, so it is never questioned */
   function datedOutside(v) {
-    if (!v.end || v.week === REF) return null; const span = v.start ? (ts(v.end) - ts(v.start)) / DAY : 0; if (span > 20) return null; // month-to-date / yearly files cover several weeks on purpose
+    if (!v.end || v.week === REF || v.dept === 'headcount') return null; const span = v.start ? (ts(v.end) - ts(v.start)) / DAY : 0; if (span > 20) return null; // month-to-date / yearly files cover several weeks on purpose
     const diff = (ts(v.end) - ts(W.selected)) / DAY;
     if (diff > 2) return `This file is dated ${v.end}, which is after the week you are in (${label(W.selected)}).\n\nIf it belongs to the next week, press Cancel, click “＋ Add new week” and upload it there. Save it into ${label(W.selected)} anyway?`;
     if (diff < -13) return `This file is dated ${v.end}, which is more than two weeks before the week you are in (${label(W.selected)}).\n\nIs this an old file? Save it into ${label(W.selected)} anyway?`;

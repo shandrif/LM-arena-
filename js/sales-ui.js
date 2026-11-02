@@ -9,7 +9,8 @@
       let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales').sort((a, b) => (a.start < b.start ? 1 : -1));
       let cur = sets[0] ? sets[0].id : null; let sub = 'Days';
       const template = async () => ({ ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) });
-      const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales').sort((a, b) => (a.start < b.start ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
+      let hc = null; // headcount per store of the open week (optional)
+      const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales').sort((a, b) => (a.start < b.start ? 1 : -1)); hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : -1))[0] || null; if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       /* ---------- upload ---------- */
       async function upload(file) {
@@ -113,13 +114,20 @@
       function storeAvgCard(c) {
         const hasLy = c.k.hasLy; const rows = c.stores.filter((x) => x.ty.n || x.ly.n);
         const cell = (v) => (v == null ? '–' : num(v));
-        const body = rows.map((x) => h('tr', {}, h('td', { class: 'l' }, x.name), h('td', {}, cell(x.ty.avg)), ...(hasLy ? [h('td', {}, x.ly.n ? cell(x.ly.avg) : (x.ty.n ? 'new' : '–')), h('td', {}, x.yoy == null ? '–' : delta(x.yoy))] : [])));
+        const staff = hc ? Object.fromEntries(hc.data.rows.map((r) => [r.key, r.total])) : null; // staff per store, from the headcount file
+        const withStaff = staff ? rows.filter((x) => staff[x.key] > 0 && x.ty.avg != null) : []; const netProd = withStaff.length ? withStaff.reduce((t, x) => t + x.ty.avg, 0) / withStaff.reduce((t, x) => t + staff[x.key], 0) : null; // network = sum of the stores’ daily averages ÷ their staff
+        const body = rows.map((x) => { const st = staff ? staff[x.key] : null; const prod = st > 0 && x.ty.avg != null ? x.ty.avg / st : null;
+          return h('tr', {}, h('td', { class: 'l' }, x.name), h('td', {}, cell(x.ty.avg)), ...(hasLy ? [h('td', {}, x.ly.n ? cell(x.ly.avg) : (x.ty.n ? 'new' : '–')), h('td', {}, x.yoy == null ? '–' : delta(x.yoy))] : []),
+            ...(staff ? [h('td', {}, st > 0 ? num(st) : '–'), h('td', { style: 'font-weight:700' }, prod == null ? '–' : num(prod)), h('td', {}, prod != null && netProd ? delta(prod / netProd - 1) : '–')] : [])); });
         const nt = c.net.ty, nl = c.net.ly;
-        const foot = h('tr', { style: 'font-weight:700' }, h('td', { class: 'l' }, 'All stores (network sales ÷ days)'), h('td', {}, cell(nt.avg)), ...(hasLy ? [h('td', {}, nl.n ? cell(nl.avg) : '–'), h('td', {}, nt.avg && nl.avg ? delta(nt.avg / nl.avg - 1) : '–')] : []));
+        const foot = h('tr', { style: 'font-weight:700' }, h('td', { class: 'l' }, 'All stores (network sales ÷ days)'), h('td', {}, cell(nt.avg)), ...(hasLy ? [h('td', {}, nl.n ? cell(nl.avg) : '–'), h('td', {}, nt.avg && nl.avg ? delta(nt.avg / nl.avg - 1) : '–')] : []),
+          ...(staff ? [h('td', { title: `${withStaff.length} of ${rows.length} stores have a headcount` }, num(withStaff.reduce((t, x) => t + staff[x.key], 0))), h('td', { title: `Stores with a headcount: their average daily sales added up ÷ their staff added up` }, netProd == null ? '–' : num(netProd)), h('td', {}, '–')] : []));
         const ly = c.k.hasLy ? `${c.stores.length ? '' : ''}Last year covers the same dates (one year earlier).` : '';
-        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Average daily sales by store (SAR)'),
-          h('div', { style: 'max-height:380px;overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Store', 'This year', ...(hasLy ? ['Last year', 'Change %'] : [])].map((t, i) => h('th', { class: i ? '' : 'l' }, t)))), h('tbody', {}, body, foot))),
-          h('div', { class: 'sub', style: 'margin-top:6px' }, `Average of the days with sales. ${ly}`));
+        const heads = ['Store', 'This year', ...(hasLy ? ['Last year', 'Change %'] : []), ...(staff ? ['Staff', 'Staff productivity', 'vs network'] : [])];
+        const ds = sets.find((x) => x.id === cur); const pick = LM.filePicker((f) => LM.headcount.upload(f, { ds, existing: hc, done: reload }), hc ? 'Replace headcount' : 'Upload headcount', false, '.xlsx,.xls,.xlsm');
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Average daily sales by store (SAR)'), h('div', { class: 'spacer' }), hc ? h('span', { class: 'sub' }, `Headcount ${hc.data.period || hc.end} · ${hc.fileName}`) : null, pick, hc ? h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask('Remove the headcount of this week? Staff productivity will no longer be shown.')) { await LM.db.del('datasets', hc.id); reload(); } } }, 'Remove') : null),
+          h('div', { style: 'max-height:380px;overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, heads.map((t, i) => h('th', { class: i ? '' : 'l', title: t === 'Staff productivity' ? 'Average daily sales ÷ staff, in SAR per staff member per day' : '' }, t, t === 'Staff productivity' ? h('div', { class: 'sub', style: 'font-weight:400' }, 'SAR / staff / day') : null)))), h('tbody', {}, body, foot))),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, `Average of the days with sales. ${ly}`, staff ? ` Staff productivity = the store’s average daily sales ÷ its headcount (all roles); “–” where the headcount file has no match for the store. vs network compares with ${netProd == null ? '–' : num(netProd)} SAR per staff per day (${withStaff.length} stores with a headcount).` : ' Upload the weekly headcount file to add staff and staff productivity per store.'));
       }
       function weekdayStoreCard(c) {
         const W = c.WEEK; const key = wdView; const hasLy = c.k.hasLy; const rows = [{ name: 'All stores', p: c.net[key], net: true }, ...c.stores.map((x) => ({ name: x.name, p: x[key] }))].filter((r) => r.p.n);
