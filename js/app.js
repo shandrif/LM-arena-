@@ -4,7 +4,7 @@
   const DRAFT = 'No custom summary for this department yet. Files you upload are checked and summarised automatically; share the weekly report with Claude to build the dedicated KPIs and format checks for this tab.';
   const generic = (id, l) => LM.makeGenericDept(id, l, DRAFT);
   // tabs are placed side by side by topic; a thin divider separates the groups
-  const depts = [
+  const base = [
     LM.depts.sales, LM.depts.manualpunch, LM.depts.wastage, LM.depts.international, LM.depts.training, LM.depts.quality,
     LM.depts.procurement, LM.depts.warehouse, LM.depts.shipment,
     LM.depts.bakery, LM.depts.roasting,
@@ -12,12 +12,12 @@
     LM.depts.briefs,
     LM.depts.discussion,
   ];
+  let depts = base.slice(); // + the tabs an admin added (js/customtabs.js), merged in once the data is loaded
   const GROUP_END = ['quality', 'shipment', 'roasting', 'others']; // a divider is drawn after these
   const panel = h('main'); const tabs = h('nav', { class: 'tabs' });
   let active = (location.hash || '#sales').slice(1);
   if (LM.blocks) LM.blocks.attach(panel, () => active);
   if (LM.week && LM.week.attach) LM.week.attach(panel, () => active);
-  if (!depts.some((d) => d.id === active)) active = 'sales';
 
   async function show(id) {
     active = id; location.hash = id; LM.killCharts();
@@ -26,7 +26,14 @@
     panel.classList.remove('enter'); panel.replaceChildren(); void panel.offsetWidth; panel.classList.add('enter'); clearTimeout(show.t); show.t = setTimeout(() => panel.classList.remove('enter'), 700); // short rise on tab change only
     await depts.find((d) => d.id === id).mount(panel);
   }
-  depts.forEach((d) => tabs.append(h('button', { 'data-id': d.id, class: GROUP_END.includes(d.id) ? 'grp' : '', onclick: () => show(d.id) }, d.label)));
+  function renderTabs() {
+    tabs.querySelectorAll('button').forEach((b) => b.remove()); // keeps the water-drop layer of the tab bar
+    depts.forEach((d) => tabs.append(h('button', { 'data-id': d.id, class: (GROUP_END.includes(d.id) ? 'grp' : '') + (d.id === active ? ' on' : ''), onclick: () => show(d.id) }, d.label)));
+    const admin = !(LM.viewOnly || (LM.snapshot && LM.snapshot.active));
+    if (admin && LM.customTabs) tabs.append(h('button', { class: 'addtab', title: 'Add a tab of your own', onclick: async () => { const r = await LM.customTabs.settings(LM.tabsNow(), null); if (r) await LM.customTabs.changed(r.id); } }, '＋ Add tab'));
+  }
+  LM.tabsNow = () => depts.map((d) => ({ id: d.id, label: d.label }));
+  if (LM.customTabs) LM.customTabs.changed = async (goId) => { await LM.customTabs.load(); depts = LM.customTabs.merge(base); renderTabs(); if (LM.liquidTabs && tabs.dataset.liquid) LM.liquidTabs.move(tabs, tabs.querySelector('button.on') || tabs.querySelector('button')); await show(depts.some((d) => d.id === goId) ? goId : 'sales'); };
 
   async function backup() {
     const b64 = (buf) => { let t = ''; const u = new Uint8Array(buf); for (let i = 0; i < u.length; i += 0x8000) t += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(t); };
@@ -52,11 +59,11 @@
       if (W) { const cur = W.list.find((x) => x.week === W.selected); if (target && W.selected !== target && (!cur || cur.n === 0)) W.selected = target; await W.rebuild(); if (LM.cloud) await LM.cloud.load(W.selected); }
     } catch (e) { return LM.say('Restore stopped: ' + e.message); }
     if (W) { const c = document.querySelector('.wkctl'); if (c) c.replaceWith(W.control()); }
-    show(active); LM.toast('Backup restored');
+    if (LM.customTabs && LM.customTabs.changed) await LM.customTabs.changed(active); else show(active); LM.toast('Backup restored'); // a backup can bring its own custom tabs
   }
   const rin = h('input', { type: 'file', accept: '.json', style: 'display:none', onchange: () => rin.files[0] && restore(rin.files[0]) });
 
-  (LM.ready || Promise.resolve()).catch(() => {}).then(() => {
+  (LM.ready || Promise.resolve()).catch(() => {}).then(async () => {
   const snap = LM.snapshot.active; const view = !!LM.viewOnly; LM.refresh = () => show(active);
   async function saveCopy() { try { await LM.snapshot.download(); } catch (e) { LM.say('Could not create the HTML copy: ' + e.message + (location.protocol === 'file:' ? '\n\nThis page was opened straight from a file; open the hosted dashboard (or the single-file build) to save copies.' : '')); } }
   function clearDialog() {
@@ -80,7 +87,9 @@
     view && !LM.notice ? h('div', { class: 'banner', style: 'margin:8px 16px' }, 'Shared live dashboard · view only. The owner uploads the weekly files; you always see the latest data.') : null,
     snap ? h('div', { class: 'banner', style: 'margin:8px 16px' }, `Saved copy · data up to ${m.latest || '–'} · saved ${(m.savedAt || '').slice(0, 16).replace('T', ' ')}. Read-only: uploads are switched off here. Open the live dashboard to add or change data.`) : null,
     tabs), panel);
-  show(active); if (LM.liquidTabs) LM.liquidTabs.attach(tabs);
+  if (LM.customTabs) { try { await LM.customTabs.load(); depts = LM.customTabs.merge(base); } catch (e) { /* no custom tabs */ } }
+  if (!depts.some((d) => d.id === active)) active = 'sales';
+  renderTabs(); show(active); if (LM.liquidTabs) LM.liquidTabs.attach(tabs);
   if (LM.week && LM.week.migrateLegacy) setTimeout(() => LM.week.migrateLegacy().catch(() => {}), 400); // one-time: put reports saved before weeks existed into a week
   });
 })();

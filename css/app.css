@@ -36,6 +36,7 @@ nav.tabs::-webkit-scrollbar { display: none; width: 0; height: 0; }
 nav.tabs button { background: none; border: 0; border-bottom: 3px solid transparent; padding: 10px 14px; cursor: pointer; color: var(--muted); white-space: nowrap; font-weight: 600; }
 nav.tabs button:hover { color: var(--ink); }
 nav.tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+nav.tabs button.addtab { color: var(--accent); opacity: .75; font-weight: 600; } nav.tabs button.addtab:hover { opacity: 1; }
 nav.tabs .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--good); margin-left: 6px; }
 main { padding: 16px; max-width: 1400px; margin: 0 auto; }
 .btn { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 14px; cursor: pointer; font-weight: 600; }

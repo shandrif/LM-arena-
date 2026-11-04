@@ -5,6 +5,7 @@ There is no Overview sub-tab; each tab opens on its first working sub-tab. Every
 Sales has a **Mugs** sub-tab (next to Heat map): mug sales by family, by mug and by store, taken from the item sales of the Sales report (free refills are not counted).
 Under it, **Mugs stock in branches** has its own upload for the weekly *SOH Daily Tracker – Mugs & Coffee* workbook (one sheet per ROM, stores across the top): stock per mug and ROM, and per store (by mug or by family), with the change against the previous stock file. Only mug rows are read; mugs are matched by name (the workbook's own “Total” sheet adds rows by position and is not used), and every row is checked against its sheet's Total column before saving.
 **Management briefs** (before Discussion points): upload the week's HTML meeting briefs; each gets a sub-tab with a summary (KPI tiles, executive summary, findings by level, decisions, questions, recommended actions, timeline) read from the brief itself, an Overview across all briefs, and an **Original** switch that shows the brief exactly as sent (in a sandboxed frame).
+**＋ Add tab** (end of the tab bar, admins only): add a tab of your own, name it and choose where it goes; ⚙ Tab settings renames, moves or deletes it. Its **Page** is written in the dashboard: KPI tiles, text (rich-text editor) and tables (typed or pasted from Excel, optionally shown as a bar or line chart). Each week has its own page; a new week can start from a copy of the last one. Its **Files** sub-tab takes any Excel/CSV like the flexible tabs. View-only users see the pages but cannot change them.
 Each tab has its own **Upload**; every file is **checked before anything is saved** (new/renamed columns, bad values,
 duplicates, re-sent files, overlapping periods…) and nothing is stored until you approve the review.
 
@@ -41,5 +42,5 @@ Static-only options (data stays in each visitor's browser): the repo is plain st
 ## Code map
 `js/engine.js` generic file-check engine · `js/core.js` helpers, storage, review dialog · `js/snapshot.js` HTML copy / clear ·
 `js/<dept>-model.js` parsing + checks (no DOM) · `js/<dept>-ui.js` screens · `js/generic-ui.js` flexible tab (used for Real estate) · `js/richtext.js` note editor · `js/blocks.js` hide/show blocks ·
-`js/mugstock.js` mug stock file (Sales → Mugs) · `js/briefs-ui.js` management briefs · `js/codec.js` + `js/shared-db.js` (claude.ai) + `js/cloud-db.js` (website) storage back-ends · `js/weeks.js` week logic · `cloud/` Worker + database schema ·
+`js/mugstock.js` mug stock file (Sales → Mugs) · `js/briefs-ui.js` management briefs · `js/customtabs.js` admin-made tabs · `js/codec.js` + `js/shared-db.js` (claude.ai) + `js/cloud-db.js` (website) storage back-ends · `js/weeks.js` week logic · `cloud/` Worker + database schema ·
 `js/app.js` tabs + header. Libraries are vendored in `vendor/`.
