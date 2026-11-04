@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.png
+*.xlsx
+*.xls
+*.ods
+*.csv
+*.pptx
+*.pdf
+*.json
+!package.json
+.wrangler/
+.dev.vars
+users.private
+.session-secret
+.secrets.tmp.json
