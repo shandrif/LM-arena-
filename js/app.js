@@ -9,6 +9,7 @@
     LM.depts.procurement, LM.depts.warehouse, LM.depts.shipment,
     LM.depts.bakery, LM.depts.roasting,
     LM.depts.nep, LM.makeGenericDept('others', 'Real estate', null),
+    LM.depts.briefs,
     LM.depts.discussion,
   ];
   const GROUP_END = ['quality', 'shipment', 'roasting', 'others']; // a divider is drawn after these

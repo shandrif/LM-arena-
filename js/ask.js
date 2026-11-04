@@ -6,7 +6,7 @@
   const { h } = LM;
 
   /* ---------- reading the saved reports ---------- */
-  const SKIP = new Set(['pdf', 'hash', 'id']);
+  const SKIP = new Set(['pdf', 'hash', 'id', 'html']); // html = a management brief's original page (its summary is stored next to it)
   const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
   const num = (v) => { if (typeof v === 'number') return v; if (typeof v === 'string' && v.trim() !== '') { const n = +v.replace(/,/g, ''); if (isFinite(n)) return n; } return NaN; };
   const short = (v, n = 160) => { if (v == null) return v; if (typeof v === 'object') { const s = JSON.stringify(v); return s.length > n ? s.slice(0, n) + '…' : s; } if (typeof v === 'string' && v.length > n) return v.slice(0, n) + '…'; return v; };
