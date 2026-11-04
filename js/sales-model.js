@@ -263,5 +263,36 @@
     return { k, branches, days, lyDays, dow, stores, net, WEEK, groups: groups.arr, items: itemsR.arr, itemsTotal: itemsR.total };
   }
 
-  LM.sales = { WEEK: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'], spec, defaultTemplate, build, checks, compute, readSummaryTiles, branchKey, addYears, DOW };
+  /* ---------- mugs: every item whose name says "Mug", grouped into families ----------
+     Left out: free refills ("Repeated Hot/Cold Mug", 0 SAR) and refill drinks ("Non HM Mug … Refill").
+     Spelling variants are merged: a trailing "\", "Sig"/"Sign" and "(Signuture)" do not make a different mug. */
+  const isMug = (name) => /mug/i.test(name) && !/repeated|refill|non\s*hm/i.test(name);
+  const mugName = (name) => String(name).replace(/\\/g, ' ').replace(/\((signuture|signature)\)/ig, ' ').replace(/\s*sign?\s*$/i, '')
+    .replace(/[\s/(]+$/, '').replace(/\s+[–—-]\s+|\s*[–—]\s*/g, ' – ').replace(/\s+/g, ' ').trim();
+  const MUG_FAMILIES = [
+    [/^coffee mug/i, 'Coffee Mug'], [/alsail/i, 'Alsail'], [/^summer/i, 'Summer'], [/al-?haram/i, 'Al-Haram'],
+    [/national|fazaa/i, 'National (Fazaa)'], [/^(hot|cold) mug/i, 'Hot & Cold Mug'],
+  ];
+  const mugFamily = (name) => { for (const [re, f] of MUG_FAMILIES) if (re.test(name)) return f; return name; };
+  function mugs(ds) {
+    const rows = ds.items || [];
+    const storeAll = {}; rows.forEach((r) => { storeAll[r.store] = (storeAll[r.store] || 0) + (r.sales || 0); });
+    const allSales = sum(rows, (r) => r.sales || 0);
+    const I = {}, F = {}, St = {};
+    rows.forEach((r) => {
+      if (!isMug(r.item)) return;
+      const name = mugName(r.item), fam = mugFamily(name), s = r.sales || 0, q = r.qty || 0;
+      const i = (I[name] = I[name] || { name, family: fam, sales: 0, qty: 0, stores: new Set() }); i.sales += s; i.qty += q; if (s || q) i.stores.add(r.store);
+      const f = (F[fam] = F[fam] || { name: fam, sales: 0, qty: 0, items: new Set() }); f.sales += s; f.qty += q; f.items.add(name);
+      const st = (St[r.store] = St[r.store] || { name: r.store, sales: 0, qty: 0, fam: {} }); st.sales += s; st.qty += q; st.fam[fam] = (st.fam[fam] || 0) + s;
+    });
+    const total = Object.values(I).reduce((t, x) => t + x.sales, 0), qty = Object.values(I).reduce((t, x) => t + x.qty, 0);
+    const items = Object.values(I).map((x) => ({ name: x.name, family: x.family, sales: x.sales, qty: x.qty, avg: x.qty ? x.sales / x.qty : null, share: total ? x.sales / total : 0, stores: x.stores.size })).sort((a, b) => b.sales - a.sales);
+    const families = Object.values(F).map((x) => ({ name: x.name, sales: x.sales, qty: x.qty, avg: x.qty ? x.sales / x.qty : null, share: total ? x.sales / total : 0, items: x.items.size })).sort((a, b) => b.sales - a.sales);
+    const stores = Object.values(St).map((x) => ({ ...x, share: storeAll[x.name] ? x.sales / storeAll[x.name] : null })).sort((a, b) => b.sales - a.sales);
+    stores.forEach((x, i) => (x.rank = i + 1));
+    return { total, qty, avg: qty ? total / qty : null, share: allSales ? total / allSales : null, items, families, stores, storesSelling: stores.filter((x) => x.sales > 0).length };
+  }
+
+  LM.sales = { WEEK: ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'], spec, defaultTemplate, build, checks, compute, mugs, readSummaryTiles, branchKey, addYears, DOW };
 })(typeof window !== 'undefined' ? window : globalThis);

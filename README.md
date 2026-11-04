@@ -2,6 +2,7 @@
 
 One tab per department, placed side by side by topic: Sales · Manual punch · Wastage · International · Training | Procurement · Warehouse · Shipment | Bakery factory · Roasting | NEP · Real estate | Quality | Discussion points.
 There is no Overview sub-tab; each tab opens on its first working sub-tab. Every block (card, chart, KPI row, table) has a Hide / Show tag; hidden blocks are remembered per browser, and a "Show all" bar appears when something is hidden. Discussion points use a Word-style rich-text editor (fonts, sizes, colours, highlight, lists, alignment, links); notes are stored as sanitised HTML.
+Sales has a **Mugs** sub-tab (next to Heat map): mug sales by family, by mug and by store, taken from the item sales of the Sales report (free refills are not counted).
 Each tab has its own **Upload**; every file is **checked before anything is saved** (new/renamed columns, bad values,
 duplicates, re-sent files, overlapping periods…) and nothing is stored until you approve the review.
 

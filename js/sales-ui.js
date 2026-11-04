@@ -10,7 +10,8 @@
       let cur = sets[0] ? sets[0].id : null; let sub = 'Days';
       const template = async () => ({ ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) });
       let hc = null; // headcount per store of the open week (optional)
-      const loadHc = async () => { hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)))[0] || null; };
+      let allSales = []; // sales reports of every loaded week (a week only lists its own), for the Mugs “since previous upload” tile
+      const loadHc = async () => { allSales = (await (LM.dbRaw || LM.db).all('datasets')).filter((d) => d && d.dept === 'sales'); hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)))[0] || null; };
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales').sort((a, b) => (a.start < b.start ? 1 : -1)); await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       /* ---------- upload ---------- */
@@ -72,9 +73,9 @@
           h('p', { class: 'sub' }, 'Drop the Sales Performance Report (.xlsx) here, or use the Upload button.'),
           h('p', { class: 'sub' }, 'Expected sheets: Data TY (Day, Store, Net sales, Bills), Data LY (same, last year), Data Items (Store, Order type, Item group, Item, Qty, Net sales).')));
         const c = S.compute(ds);
-        const tabs = ['Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Uploads'];
+        const tabs = ['Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Mugs', 'Uploads'];
         const st = h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t)));
-        const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, Uploads: uploads }[sub](ds, c);
+        const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, Mugs: mugs, Uploads: uploads }[sub](ds, c);
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Report ${ds.start} → ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), st, v);
       }
 
@@ -237,6 +238,66 @@
           return h('tr', {}, h('td', { class: 'l' }, b.name), dl.map((d) => { const v = b.days[d] || 0; return v ? h('td', { style: `background:color-mix(in srgb, var(--accent) ${Math.round((v / mx) * 70)}%, transparent)` }, num(v)) : h('td', { class: 'z' }, '0'); }), h('td', {}, num(b.sales))); });
         return h('div', {}, h('div', { class: 'sub', style: 'margin-bottom:6px' }, 'Net sales per branch per day. Darker = closer to that branch’s best day; tan cells = no sales recorded.'),
           h('div', { class: 'tscroll' }, h('table', { class: 't heat' }, h('thead', {}, head), h('tbody', {}, trs))));
+      }
+
+      /* ---------- Mugs: sales of every mug, by family, by store ---------- */
+      function mugs(ds) {
+        if (!ds.items || !ds.items.length) return h('div', { class: 'banner' }, 'This report has no item data, so mug sales cannot be shown.');
+        const m = S.mugs(ds);
+        if (!m.items.length) return h('div', { class: 'banner' }, 'No mugs were found in this report’s item sales.');
+        const main = m.families.filter((f) => f.share >= 0.005), small = m.families.filter((f) => f.share < 0.005); // families under 0.5% of mug sales share one “Other mugs” bar / column
+        const OTHER = 'Other mugs'; m.mainFams = [...main.map((f) => f.name), ...(small.length ? [OTHER] : [])]; m.otherOf = new Set(small.map((f) => f.name));
+        m.stores.forEach((x) => { x.col = {}; Object.entries(x.fam).forEach(([f, v]) => { const k = m.otherOf.has(f) ? OTHER : f; x.col[k] = (x.col[k] || 0) + v; }); });
+        const chartFams = [...main.map((f) => [f.name, f.sales]), ...(small.length ? [[OTHER, small.reduce((t, f) => t + f.sales, 0)]] : [])];
+        // the report is month-to-date: the earlier upload of the same period gives what was sold in between
+        const prev = [...sets, ...allSales].filter((s) => s.start === ds.start && s.end < ds.end).sort((a, b) => (a.end < b.end ? 1 : -1))[0];
+        const pm = prev ? S.mugs(prev) : null;
+        const nextDay = (d) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
+        const between = pm ? `${dayLabel(nextDay(prev.end))} – ${dayLabel(ds.end)}` : '';
+        const el = h('div', {},
+          h('div', { class: 'grid kpis' },
+            kpi('Mug sales', num(m.total), 'SAR'),
+            kpi('Mugs sold', num(m.qty), 'pieces'),
+            kpi('Average price', num2(m.avg), 'SAR per mug'),
+            kpi('Share of all sales', m.share == null ? '–' : pct0(m.share), 'of item sales'),
+            kpi('Stores selling mugs', num(m.storesSelling), `${num(m.items.length)} different mugs`),
+            kpi(pm ? `Mug sales ${between}` : 'Since previous upload', pm ? num(m.total - pm.total) : '–', pm ? `${num(m.qty - pm.qty)} mugs` : 'no earlier upload of this period')),
+          h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Mug sales by family (SAR)', 'm1'), chartCard('Top 10 stores: mug sales (SAR)', 'm2')),
+          mugFamilyCard(m), mugItemsCard(ds, m), mugStoreCard(ds, m),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, 'Mugs = items whose name contains “Mug”. Free refills (“Repeated Hot/Cold Mug”) and refill drinks (“Non HM Mug … Refill”) are not counted. Spelling variants of one mug (a trailing “\\”, “Sig”, “(Signuture)”) are added together. Figures cover the whole report period' + (pm ? `; the last tile is this report minus the upload for ${prev.start} → ${prev.end}.` : '.')));
+        setTimeout(() => {
+          const pal = LM.palette();
+          LM.chart(el.querySelector('#m1'), { type: 'bar', data: { labels: chartFams.map((f) => f[0]), datasets: [{ data: chartFams.map((f) => f[1]), backgroundColor: pal[0] }] },
+            options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (i) => num(i.raw) + ' SAR' } } }, scales: { x: { ticks: { callback: (v) => compact(v) } } } } });
+          const t = m.stores.slice(0, 10);
+          LM.chart(el.querySelector('#m2'), { type: 'bar', data: { labels: t.map((x) => x.name.slice(0, 26)), datasets: [{ data: t.map((x) => x.sales), backgroundColor: ty$() }] },
+            options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (i) => num(i.raw) + ' SAR' } } }, scales: { x: { ticks: { callback: (v) => compact(v) } } } } });
+        });
+        return el;
+      }
+      function mugFamilyCard(m) {
+        const cols = [{ k: 'name', label: 'Mug family', l: 1 }, { k: 'items', label: 'Mugs', fmt: num }, { k: 'qty', label: 'Quantity', fmt: num }, { k: 'sales', label: 'Net sales', fmt: num }, { k: 'avg', label: 'Avg price', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'share', label: 'Share', fmt: pct0 }];
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Mug families'), LM.table(cols, m.families, { sort: 'sales' }));
+      }
+      function mugItemsCard(ds, m) {
+        const cols = [{ k: 'name', label: 'Mug', l: 1, cls: 'wrap' }, { k: 'family', label: 'Family', l: 1 }, { k: 'qty', label: 'Quantity', fmt: num }, { k: 'sales', label: 'Net sales', fmt: num }, { k: 'avg', label: 'Avg price', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'share', label: 'Share', fmt: pct0 }, { k: 'stores', label: 'Stores selling', fmt: num }];
+        const search = h('input', { type: 'search', placeholder: 'Search mug…' }); const fam = h('select', { class: 'sel' }, ['All families', ...m.families.map((f) => f.name)].map((x) => h('option', {}, x)));
+        const tbl = LM.table(cols, m.items, { sort: 'sales' });
+        const apply = () => { const q = search.value.toLowerCase(); tbl.redraw(m.items.filter((i) => i.name.toLowerCase().includes(q) && (fam.value === 'All families' || i.family === fam.value))); };
+        search.oninput = apply; fam.onchange = apply;
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Every mug'), h('div', { class: 'spacer' }), search, fam, h('button', { class: 'btn small', onclick: () => LM.csv(cols, m.items, `mugs-${ds.start}-${ds.end}.csv`) }, 'Export CSV')), tbl);
+      }
+      function mugStoreCard(ds, m) {
+        const F = m.mainFams;
+        const head = h('tr', {}, h('th', { class: 'l', style: 'position:sticky;left:0;background:var(--surface)' }, 'Store'), F.map((f) => h('th', {}, f)), h('th', {}, 'Mug sales'), h('th', {}, 'Mugs sold'), h('th', { title: 'Mug sales ÷ all item sales of the store' }, 'Mugs % of store'));
+        const trs = m.stores.map((x) => { const mx = Math.max(...F.map((f) => x.col[f] || 0), 1);
+          return h('tr', {}, h('td', { class: 'l', style: 'position:sticky;left:0;background:var(--surface);white-space:nowrap' }, x.name), F.map((f) => { const v = x.col[f] || 0; return v ? h('td', { style: `background:color-mix(in srgb, var(--accent) ${Math.round((v / mx) * 70)}%, transparent)` }, num(v)) : h('td', { class: 'z' }, '–'); }),
+            h('td', { style: 'font-weight:700' }, num(x.sales)), h('td', {}, num(x.qty)), h('td', {}, x.share == null ? '–' : pct0(x.share))); });
+        const csvCols = [{ k: 'name', label: 'Store' }, ...F.map((f, i) => ({ k: 'f' + i, label: f })), { k: 'sales', label: 'Mug sales' }, { k: 'qty', label: 'Mugs sold' }, { k: 'share', label: 'Mugs % of store sales' }];
+        const csvRows = m.stores.map((x) => ({ name: x.name, ...Object.fromEntries(F.map((f, i) => ['f' + i, Math.round((x.col[f] || 0) * 100) / 100])), sales: Math.round(x.sales * 100) / 100, qty: x.qty, share: x.share == null ? '' : Math.round(x.share * 1000) / 10 }));
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Mug sales by store and family (SAR)'), h('div', { class: 'spacer' }), h('button', { class: 'btn small', onclick: () => LM.csv(csvCols, csvRows, `mugs-by-store-${ds.start}-${ds.end}.csv`) }, 'Export CSV')),
+          h('div', { class: 'tscroll', style: 'max-height:560px;overflow:auto' }, h('table', { class: 't heat' }, h('thead', {}, head), h('tbody', {}, trs))),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, `Darker = the family that store sells most of. Stores are sorted by mug sales.${m.otherOf.size ? ` Other mugs = ${[...m.otherOf].join(', ')}.` : ''}`));
       }
 
       function uploads() {
