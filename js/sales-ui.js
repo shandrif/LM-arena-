@@ -17,7 +17,7 @@
       const wkOf = (d) => d.week || d.end || '';
       const loadMs = async () => { const all = (await (LM.dbRaw || LM.db).all('datasets')).filter((d) => d && d.dept === 'mugstock').sort((a, b) => (wkOf(a) < wkOf(b) ? 1 : wkOf(a) > wkOf(b) ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)));
         msWeek = (await LM.db.all('datasets')).find((d) => d.dept === 'mugstock') || null; const sel = (LM.week && LM.week.selected) || '9999';
-        ms = msWeek || all.find((d) => wkOf(d) <= sel) || null; msPrev = ms ? all.find((d) => d.id !== ms.id && wkOf(d) < wkOf(ms)) || null : null; };
+        ms = msWeek || null; void all; void sel; msPrev = ms ? all.find((d) => d.id !== ms.id && wkOf(d) < wkOf(ms)) || null : null; };
       const loadHc = async () => { await loadMs(); allSales = (await (LM.dbRaw || LM.db).all('datasets')).filter((d) => d && d.dept === 'sales'); hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)))[0] || null; };
       const reload = async () => { const allS = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales'); sets = allS.filter((d) => !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1)); aggs = allS.filter(isAgg).sort((a, b) => (a.end < b.end ? 1 : -1)); if (!aggs.find((x) => x.id === curAgg)) curAgg = aggs[0] ? aggs[0].id : null; await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 

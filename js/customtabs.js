@@ -129,12 +129,12 @@
         const gear = canEdit() ? h('button', { class: 'btn small', onclick: async () => { const r = await settings(allTabs(), def); if (r && LM.customTabs.changed) LM.customTabs.changed(r.deleted ? 'sales' : def.id); } }, '⚙ Tab settings') : null;
 
         function pageView() {
-          const host = h('div'); const src = page || earlier; const blocks = src ? src.data.blocks || [] : [];
+          const host = h('div'); const src = page; const blocks = src ? src.data.blocks || [] : [];
           if (editing) return editor(blocks);
           const edit = canEdit() ? h('button', { class: 'btn primary', onclick: () => { editing = true; draw(); } }, page ? '✎ Edit page' : '✎ Start this week’s page') : null;
           const copy = canEdit() && !page && earlier ? h('button', { class: 'btn', onclick: async () => { await savePage(JSON.parse(JSON.stringify(earlier.data.blocks || []))); LM.toast('Copied to this week'); draw(); } }, '⧉ Copy last week’s page to this week') : null;
           host.append(h('div', { class: 'tools', style: 'margin-bottom:10px' }, page ? h('span', { class: 'sub' }, `Last saved ${String(page.uploadedAt).slice(0, 16).replace('T', ' ')}`) : null, h('div', { class: 'spacer' }), copy, edit));
-          if (!page && earlier) host.append(h('div', { class: 'banner', style: 'background:var(--warn-bg);color:var(--warn)' }, `Nothing written for this week yet. Showing the page of the week ending ${wkOf(earlier)}.`));
+          
           if (!blocks.length) host.append(h('div', { class: 'empty' }, h('h3', {}, 'Nothing here yet'), h('p', { class: 'sub' }, canEdit() ? 'Click “Start this week’s page” to add KPI tiles, text and tables, or open “Files” to upload an Excel or CSV file.' : 'The admin has not added anything to this tab yet.')));
           blocks.forEach((b) => { const el = viewBlock(b, def.label); if (el) host.append(el); });
           return host;

@@ -40,7 +40,7 @@
       const wkOf = (r) => r.week || r.end || '';
       async function load() {
         list = (await LM.db.all('datasets')).filter((r) => r.dept === 'briefs'); older = false;
-        if (!list.length) { const sel = (LM.week && LM.week.selected) || '9999'; const all = (await (LM.dbRaw || LM.db).all('datasets')).filter((r) => r && r.dept === 'briefs' && wkOf(r) < sel); const last = all.map(wkOf).sort().pop(); if (last) { list = all.filter((r) => wkOf(r) === last); older = last; } }
+        /* a week shows only its own briefs: nothing is carried over from an earlier week */
         list.forEach((r) => (r.p = parse(r.data.html))); list.sort((a, b) => (a.uploadedAt < b.uploadedAt ? -1 : 1));
         if (sub !== 'Overview' && !list.some((r) => r.id === sub)) sub = 'Overview';
       }
