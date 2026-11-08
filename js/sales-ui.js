@@ -6,17 +6,20 @@
   LM.depts.sales = {
     id: 'sales', label: 'Sales',
     async mount(panel) {
-      let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales').sort((a, b) => (a.start < b.start ? 1 : -1));
-      let cur = sets[0] ? sets[0].id : null; let sub = 'Days';
+      const isAgg = (d) => d.type === 'aggregator';
+      let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1));
+      let aggs = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && isAgg(d)).sort((a, b) => (a.end < b.end ? 1 : -1)); let curAgg = aggs[0] ? aggs[0].id : null;
+      let cur = sets[0] ? sets[0].id : null; let sub = sets[0] || !aggs[0] ? 'Days' : 'Sales by aggregators';
       const template = async () => ({ ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) });
       let hc = null; // headcount per store of the open week (optional)
       const loadHc = async () => { hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)))[0] || null; };
-      const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales').sort((a, b) => (a.start < b.start ? 1 : -1)); await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
+      const reload = async () => { const all = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales'); sets = all.filter((d) => !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1)); aggs = all.filter(isAgg).sort((a, b) => (a.end < b.end ? 1 : -1)); if (!aggs.find((s) => s.id === curAgg)) curAgg = aggs[0] ? aggs[0].id : null; await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       /* ---------- upload ---------- */
       async function upload(file) {
         let rf;
         try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
+        if (LM.aggregator.detect(rf.wb)) return uploadAgg(rf);
         const tpl = await template();
         const ov = { sheets: {}, cols: {}, groupAliases: {} };
         const run = () => {
@@ -58,6 +61,22 @@
         const dlg = LM.review(info());
       }
 
+      /* ---------- aggregator report (Sales by aggregators) ---------- */
+      function uploadAgg(rf) {
+        const res = LM.aggregator.parse(rf.wb, rf.name, aggs, rf.hash); const ds = res.ds;
+        const info = () => ({ title: `Review before processing: ${rf.name}`, facts: ds ? [['Report', 'Sales by aggregators'], ['Period', ds.start ? `${ds.start} → ${ds.end}` : '–'], ['Stores', num(new Set(ds.rows.map((r) => r.store)).size)], ['Aggregators', [...new Set(ds.rows.map((r) => r.source))].join(', ')], ['Orders', num(ds.totals.orders)], [`Value (${ds.currency})`, num(Math.round(ds.totals.value))]] : [['Report', 'Not recognised']], issues: res.issues,
+          approveLabel: ds && aggs.some((s) => s.start === ds.start && s.end === ds.end) ? 'Approve & replace existing period' : 'Approve & process', onCancel: () => {},
+          onApprove: async () => { if (!ds || res.issues.some((i) => i.level === 'error')) throw new Error('Fix the errors first.'); const same = aggs.find((s) => s.start === ds.start && s.end === ds.end); if (same) { await LM.db.put('history', { ...same, id: LM.uid(), replacedAt: new Date().toISOString() }); await LM.db.del('datasets', same.id); }
+            const rec = { id: LM.uid(), dept: 'sales', type: 'aggregator', fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), ...ds }; await LM.db.put('datasets', rec); curAgg = rec.id; sub = 'Sales by aggregators'; await reload(); LM.toast(`Sales by aggregators ${ds.start} → ${ds.end} processed`); } });
+        LM.review(info());
+      }
+      function aggView() {
+        const a = aggs.find((s) => s.id === curAgg); if (!a) return h('div', { class: 'empty' }, h('h3', {}, 'No aggregator report uploaded yet'), h('p', { class: 'sub' }, 'Upload the Aggregator Report (.xlsx): Store, Delivery source, Payment type, Bills, Gross sales.'));
+        const prev = aggs.find((s) => s.end < a.end);
+        return h('div', {}, aggs.length > 1 ? h('div', { class: 'tools' }, h('select', { class: 'sel', onchange: (e) => { curAgg = e.target.value; draw(); } }, aggs.map((s) => h('option', { value: s.id, selected: s.id === curAgg }, `${s.start} → ${s.end}`)))) : null,
+          LM.aggregator.view(a, prev, async () => { if (await LM.ask(`Delete the aggregator report for ${a.start} → ${a.end}?`)) { await LM.db.del('datasets', a.id); reload(); } }));
+      }
+
       /* ---------- render ---------- */
       const body = h('div');
       function draw() {
@@ -68,13 +87,14 @@
           h('div', { class: 'head' }, h('h2', {}, 'Sales'), periodSel, h('div', { class: 'spacer' }), picker), body);
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
+        if (!ds && aggs.length) { const st0 = h('div', { class: 'subtabs' }, h('button', { class: 'on' }, 'Sales by aggregators')); return body.replaceChildren(st0, aggView()); }
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No sales report uploaded yet'),
           h('p', { class: 'sub' }, 'Drop the Sales Performance Report (.xlsx) here, or use the Upload button.'),
           h('p', { class: 'sub' }, 'Expected sheets: Data TY (Day, Store, Net sales, Bills), Data LY (same, last year), Data Items (Store, Order type, Item group, Item, Qty, Net sales).')));
         const c = S.compute(ds);
-        const tabs = ['Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Uploads'];
+        const tabs = ['Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Sales by aggregators', 'Uploads'];
         const st = h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t)));
-        const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, Uploads: uploads }[sub](ds, c);
+        const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, 'Sales by aggregators': aggView, Uploads: uploads }[sub](ds, c);
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Report ${ds.start} → ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), st, v);
       }
 

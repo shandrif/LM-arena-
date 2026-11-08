@@ -14,7 +14,7 @@
       let T = W.defaultTemplate();
       const reload = async () => {
         const all = await LM.db.all('datasets');
-        sets = all.filter((d) => d.dept === 'wastage').sort((a, b) => (a.start < b.start ? 1 : -1)); salesSets = all.filter((d) => d.dept === 'sales');
+        sets = all.filter((d) => d.dept === 'wastage').sort((a, b) => (a.start < b.start ? 1 : -1)); salesSets = all.filter((d) => d.dept === 'sales' && d.type !== 'aggregator');
         T = await tpl(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw();
       };
       const calc = (ds) => W.compute(ds, T, W.salesNetFor(salesSets, ds.start, ds.end), null);
