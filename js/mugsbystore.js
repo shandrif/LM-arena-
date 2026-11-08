@@ -15,6 +15,7 @@
   function card(V, ds) {
     const bk = LM.sales.branchKey; const sold = new Map(); let branches = [];
     if (ds) { const seen = new Map(); ds.items.forEach((r) => { const m = LM.mugstock.mugOf(r.item); if (!m || m.unknown) return; const k = bk(r.store) + '|' + m.name; const o = sold.get(k) || { qty: 0, value: 0 }; o.qty += r.qty || 0; o.value += r.sales || 0; sold.set(k, o); seen.set(bk(r.store), r.store); }); branches = [...seen.entries()].map(([key, name]) => ({ key, name })); }
+    if (!V) { const names = [...new Set([...sold.keys()].map((k) => k.split('|')[1]))].sort(); V = { stores: [], mugs: names.map((name) => ({ name })) }; } // no stock file for this week: sales only, Stock shows “–”
     const rows = []; const used = new Set(); const cnt = {};
     const mm = V.stores.map((s) => ({ s, b: ds ? match(s.name, branches) : null })); mm.forEach(({ b }) => { if (b) cnt[b.key] = (cnt[b.key] || 0) + 1; });
     mm.forEach(({ s, b }) => { const ok = b && cnt[b.key] === 1; if (ok) used.add(b.key); V.mugs.forEach((m) => { const stock = s.mug[m.name]; const sd = ok ? sold.get(b.key + '|' + m.name) : null; if (!(stock || (sd && (sd.qty || sd.value)))) return; rows.push({ store: ok ? b.name : s.name, rom: s.rom, mug: m.name, qty: ok ? (sd ? sd.qty : 0) : null, value: ok ? (sd ? sd.value : 0) : null, stock: stock == null ? null : stock }); }); });
@@ -27,7 +28,7 @@
     const names = [...new Set(rows.map((d) => d.store))]; const cols = [{ k: 'store', label: 'Store' }, { k: 'mug', label: 'Mug' }, { k: 'qty', label: 'Sales qty' }, { k: 'value', label: 'Sales value (SAR)' }, { k: 'stock', label: 'Stock' }];
     return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Mugs by store'), h('div', { class: 'spacer' }), h('input', { type: 'search', placeholder: 'Search store or mug…', oninput: (e) => { q.s = e.target.value; draw(); } }), h('select', { class: 'sel', onchange: (e) => { q.store = e.target.value; draw(); } }, h('option', { value: '' }, 'All stores'), ...names.map((n) => h('option', { value: n }, n))), cnt2, h('button', { class: 'btn small', onclick: () => LM.csv(cols, rows, 'mugs-by-store.csv') }, 'Export CSV')),
       h('div', { class: 'tscroll', style: 'max-height:560px;overflow:auto;margin-top:8px' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, h('th', { class: 'l', rowspan: 2 }, 'Store'), h('th', { class: 'l', rowspan: 2 }, 'Mugs'), h('th', { colspan: 2, style: 'text-align:center;border-bottom:1px solid var(--line)' }, 'Sales'), h('th', { rowspan: 2 }, 'Stock')), h('tr', {}, h('th', {}, 'Qty'), h('th', {}, 'Value (SAR)'))), body)),
-      h('div', { class: 'sub', style: 'margin-top:6px' }, ds ? `Sales = the sales report ${ds.start} → ${ds.end} for that mug in that store. “–” = the stock store could not be matched with certainty to a sales branch (or has no stock figure).` : 'Open a sales report to fill the Sales columns.'));
+      h('div', { class: 'sub', style: 'margin-top:6px' }, !ds ? 'Open a sales report to fill the Sales columns.' : ds ? `Sales = the sales report ${ds.start} → ${ds.end} for that mug in that store. “–” = the stock store could not be matched with certainty to a sales branch (or has no stock figure).` : 'Open a sales report to fill the Sales columns.'));
   }
   LM.mugsByStore = { card };
 })();

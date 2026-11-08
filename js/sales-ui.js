@@ -266,7 +266,7 @@
       }
 
       /* ---------- Mugs: sales of every mug, by family, by store ---------- */
-      function mugs(ds) { return h('div', {}, mugSales(ds), mugStock()); }
+      function mugs(ds) { return h('div', {}, LM.mugsByStore ? LM.mugsByStore.card(ms ? LM.mugstock.view(ms) : null, ds) : null, mugSales(ds), mugStock()); }
       function mugSales(ds) {
         if (!ds.items || !ds.items.length) return h('div', { class: 'banner' }, 'This report has no item data, so mug sales cannot be shown.');
         const m = S.mugs(ds);
@@ -344,7 +344,7 @@
             kpi('Stores', num(V.stores.length), `${V.roms.length} ROMs`),
             kpi('At zero', num(V.zeros.length), 'store × mug with 0 stock'),
             kpi('Change vs previous file', P ? sgn(V.total - P.total) : '–', P ? `week ending ${wkOf(msPrev)}` : 'no earlier stock file')),
-          LM.mugsByStore ? LM.mugsByStore.card(V, sets.find((x) => x.id === cur) || null) : null, stockByMugCard(V, P), stockByStoreCard(V, prevStore, !!P));
+          stockByMugCard(V, P), stockByStoreCard(V, prevStore, !!P));
         return el;
       }
       function stockByMugCard(V, P) {
