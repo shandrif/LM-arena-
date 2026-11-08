@@ -157,6 +157,7 @@
   /* ---------- one deck holding several sections (London, Iraq, event performance, Saudi NSO, expansion) ---------- */
   const hasTable = (s, re) => items(s, 'table').some((t) => re.test(t.rows[0].map(norm).join('|')));
   function sectionsOf(slides) {
+    const wsec = LM.international && LM.international.weeklySections ? LM.international.weeklySections(slides) : null; if (wsec) return wsec; // the newer “Weekly Sales Review | Iraq & London” deck
     const txt = (s) => items(s, 'text').map((t) => t.text).join(' ');
     const kind = (s) => { const t = txt(s);
       if (/london.*(weekly\s*(performance\s*)?review|performance review)/i.test(s.title)) return 'london';
@@ -189,12 +190,21 @@
     const secs = ov.type ? null : sectionsOf(slides); if (secs) return analyzeCombined(secs, name, ov, template, existing || [], hash, others);
     return analyzeSlides(slides, name, ov, template, existing, hash, others, null);
   }
+  /** checks against what is already stored: same file again, same week again, a newer week, last week's figures restated */
+  function history(type, ds, data, existing, hash, issues) {
+    const end = ds.end;
+    const same = existing.filter((e) => e.type === type).sort((a, b) => (a.end < b.end ? 1 : -1));
+    same.forEach((e) => { if (e.hash === hash) issues.push(I('warn', `This exact file was already uploaded (${e.end}, on ${e.uploadedAt.slice(0, 10)}).`)); else if (end && e.end === end) issues.push(I('warn', `A ${TYPES[type].label} for ${end} already exists. Approving replaces it (the old version is kept in history).`)); else if (end && e.end > end) issues.push(I('warn', `A newer ${TYPES[type].label} (${e.end}) already exists. This one is older.`)); });
+    const prev = same.find((e) => end && e.end < end);
+    if (prev && (type === 'london' || type === 'iraq')) { if (days(prev.end, end) !== 7) issues.push(I('warn', `The previous ${TYPES[type].label} ends ${prev.end}; expected one week before ${end}.`)); else (data.metrics || []).forEach((m) => { const pm = (prev.data.metrics || []).find((x) => norm(x.name) === norm(m.name)); if (pm && pm.curr != null && m.prev != null && Math.abs(pm.curr - m.prev) > Math.max(1.5, Math.abs(pm.curr) * 0.002)) issues.push(I('warn', `${m.name}: last week's report said ${pm.curr.toLocaleString()} for that week, but this deck now shows ${m.prev.toLocaleString()} as the previous week (restated).`)); }); }
+    if (prev && (type === 'expansion' || type === 'nso')) { const flat = (d) => (type === 'nso' ? d.rows.map((r) => [r.name, r.status]) : d.sections.flatMap((s) => s.rows.map((r) => [s.title + '|' + r[0], r[1]]))); const pm = new Map(flat(prev.data).map(([k, v]) => [norm(k), v])), nm = new Map(flat(data).map(([k, v]) => [norm(k), v])); const added = [...nm.keys()].filter((k) => !pm.has(k)), gone = [...pm.keys()].filter((k) => !nm.has(k)); const chg = [...nm].filter(([k, v]) => pm.has(k) && norm(pm.get(k)) !== norm(v)).length; if (added.length) issues.push(I('info', `${added.length} new row(s) since ${prev.end}.`)); if (gone.length) issues.push(I('warn', `${gone.length} row(s) from ${prev.end} are missing now.`)); if (chg) issues.push(I('info', `${chg} status change(s) since ${prev.end}.`)); }
+  }
   async function analyzeSlides(slides, name, ov, template, existing, hash, others, forced) {
     ov = ov || {}; existing = existing || []; template = template || {}; const issues = [];
     const type = forced || ov.type || detect(slides); if (!type || type === 'review') return { type: null, ds: null, issues: [I('error', 'This deck was not recognised as a London / Iraq weekly review, expansion update or NSO status.', { type: 'type', id: 'type', options: ['london', 'iraq', 'events', 'expansion', 'nso'], label: 'Treat this file as' })] };
     const yh = (template.year) || new Date().getFullYear(); let data, start = null, end = null;
     if (type === 'events') { data = parseEvents(slides, issues); end = data.period ? data.period.end : null; start = data.period ? data.period.start : null; if (ov.asOf && ov.asOf.date) { end = ov.asOf.date; start = start || end; data.period = { start, end }; for (let i = issues.length - 1; i >= 0; i--) if (/reporting period could not be read/.test(issues[i].msg)) issues.splice(i, 1); } }
-    else if (type === 'london' || type === 'iraq') { data = parseReview(slides, name, ov, yh, issues, forced ? (type === 'iraq' ? 'Iraq' : 'London') : null); end = data.period ? data.period.end : null; start = data.period ? data.period.start : null; if (ov.asOf && ov.asOf.date) { end = ov.asOf.date; start = addDays(end, -6); data.period = { start, end }; for (let i = issues.length - 1; i >= 0; i--) if (/could not be read from the title/.test(issues[i].msg)) issues.splice(i, 1); } }
+    else if (type === 'london' || type === 'iraq') { const wi = LM.international.weeklyInfo ? LM.international.weeklyInfo(slides, yh) : null; data = wi ? LM.international.parseWeekly(slides, type === 'iraq' ? 'Iraq' : 'London', wi, issues, name) : parseReview(slides, name, ov, yh, issues, forced ? (type === 'iraq' ? 'Iraq' : 'London') : null); end = data.period ? data.period.end : null; start = data.period ? data.period.start : null; if (ov.asOf && ov.asOf.date) { end = ov.asOf.date; start = addDays(end, -6); data.period = { start, end }; for (let i = issues.length - 1; i >= 0; i--) if (/could not be read from the title/.test(issues[i].msg)) issues.splice(i, 1); } }
     else {
       const a = ov.asOf && ov.asOf.date; const hint = others && others.end;
       if (!a) issues.push(I('error', `This deck has no date. Enter the date it applies to${hint ? ` (the weekly reviews uploaded with it end ${hint})` : ''}.`, { type: 'asOf', id: 'date', kind: 'date', value: hint || '', label: 'Use this date' }));
@@ -202,12 +212,8 @@
       data = type === 'nso' ? parseNso(slides, y, issues) : parseExpansion(slides, issues); data.slides = slides.map((s) => ({ n: s.n, title: s.title }));
     }
     const ds = { type, start, end, data };
-    // history checks
-    const same = existing.filter((e) => e.type === type).sort((a, b) => (a.end < b.end ? 1 : -1));
-    same.forEach((e) => { if (e.hash === hash) issues.push(I('warn', `This exact deck was already uploaded (${e.end}, on ${e.uploadedAt.slice(0, 10)}).`)); else if (end && e.end === end) issues.push(I('warn', `A ${TYPES[type].label} for ${end} already exists. Approving replaces it (the old version is kept in history).`)); else if (end && e.end > end) issues.push(I('warn', `A newer ${TYPES[type].label} (${e.end}) already exists. This one is older.`)); });
-    const prev = same.find((e) => end && e.end < end);
-    if (prev && (type === 'london' || type === 'iraq')) { if (days(prev.end, end) !== 7) issues.push(I('warn', `The previous ${TYPES[type].label} ends ${prev.end}; expected one week before ${end}.`)); else (data.metrics || []).forEach((m) => { const pm = (prev.data.metrics || []).find((x) => norm(x.name) === norm(m.name)); if (pm && pm.curr != null && m.prev != null && Math.abs(pm.curr - m.prev) > Math.max(1.5, Math.abs(pm.curr) * 0.002)) issues.push(I('warn', `${m.name}: last week's report said ${pm.curr.toLocaleString()} for that week, but this deck now shows ${m.prev.toLocaleString()} as the previous week (restated).`)); }); }
-    if (prev && (type === 'expansion' || type === 'nso')) { const flat = (d) => (type === 'nso' ? d.rows.map((r) => [r.name, r.status]) : d.sections.flatMap((s) => s.rows.map((r) => [s.title + '|' + r[0], r[1]]))); const pm = new Map(flat(prev.data).map(([k, v]) => [norm(k), v])), nm = new Map(flat(data).map(([k, v]) => [norm(k), v])); const added = [...nm.keys()].filter((k) => !pm.has(k)), gone = [...pm.keys()].filter((k) => !nm.has(k)); const chg = [...nm].filter(([k, v]) => pm.has(k) && norm(pm.get(k)) !== norm(v)).length; if (added.length) issues.push(I('info', `${added.length} new row(s) since ${prev.end}.`)); if (gone.length) issues.push(I('warn', `${gone.length} row(s) from ${prev.end} are missing now.`)); if (chg) issues.push(I('info', `${chg} status change(s) since ${prev.end}.`)); }
+    history(type, ds, data, existing, hash, issues);
+    if (type === 'london' || type === 'iraq') LM.international.reconcile(type, ds, existing, issues);
     // NSO vs NEP
     if (type === 'nso' && others && others.nepList) { const L = others.nepList; data.rows.forEach((r) => { const m = nepMatch(r.name, L); r.nep = m ? { name: m.name, openDate: m.openDate, ym: m.ym, status: m.status } : null; if (!m) { issues.push(I('info', `“${r.name}” is not in the NEP plan for the next months.`)); return; } const nd = m.openDate || `${m.ym}-15`; if (r.when) { const d = days(nd, r.when); r.slipDays = d; if (Math.abs(d) > 7) issues.push(I('warn', `“${r.name}”: this deck says ${r.comment.replace(/^.*?(open|launch)/i, '$1')} (${r.when}), but the NEP plan has ${m.name} on ${m.openDate || m.ym} (${d > 0 ? d + ' days later' : -d + ' days earlier'}).`)); } }); }
     return { type, ds, issues };
@@ -256,9 +262,10 @@
     D.reported = D.reported != null ? D.reported : (D.kpis.find((k) => /events/i.test(k.label)) || {}).n || null;
   }
   async function analyzeEventPdf(pages, name, ov, template, existing, hash, others) {
+    if (LM.international.isOverviewPdf && LM.international.isOverviewPdf(pages)) return LM.international.analyzeEventOverview(pages, name, ov, template, existing, hash, others);
     const issues = []; const { slides, p2 } = eventPdfSlides(pages, issues); const r = await analyzeSlides(slides, name, ov, template || {}, existing || [], hash, others, 'events');
     if (r.ds) { eventPdfExtras(r.ds.data, pages, p2, r.issues); r.ds.data.subtitle = (r.ds.data.subtitle || '').replace(/\s+/g, ' '); }
     return { ...r, issues: [...issues, ...r.issues, I('info', 'Read from the PDF: events, figures and the “Additional Activities” list. The PDF itself is not stored.')] };
   }
-  LM.international = { TYPES, analyze, val, nepMatch, openWhen, sectionsOf, isEventPdf, analyzeEventPdf };
+  LM.international = { TYPES, analyze, analyzeSlides, history, val, nepMatch, openWhen, sectionsOf, analyzeEventPdf, isEventPdf: (pages) => isEventPdf(pages) || !!(LM.international.isOverviewPdf && LM.international.isOverviewPdf(pages)) };
 })(typeof window !== 'undefined' ? window : globalThis);
