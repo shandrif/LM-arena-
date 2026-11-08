@@ -232,8 +232,25 @@
     const all = [].concat(...(cfg.data.datasets || []).map((d) => (d.data || []).map((x) => (typeof x === 'number' ? Math.abs(x) : 0)))); const mxv = Math.max(0, ...all); const wRight = Math.min(80, Math.max(40, fmtValue(mxv).length * 7 + 18));
     if (!cfg.options.layout.padding) cfg.options.layout.padding = ty === 'bar' ? (horiz ? { right: wRight, top: 4 } : { top: many ? 44 : 22 }) : ty === 'line' ? { top: 24, bottom: 16, right: 26, left: 4 } : { top: 22, bottom: 22, left: 22, right: 22 };
     if (ty === 'bar' && horiz) { const nrows = (cfg.data.labels || []).length, ns = (cfg.data.datasets || []).length; const stacked = cfg.options.scales && cfg.options.scales.x && cfg.options.scales.x.stacked; const need = nrows * (stacked ? 24 : ns * 15 + 8) + 60; if (need > canvasHost.clientHeight) canvasHost.style.height = need + 'px'; }
+    if (!cfg.options.onClick && cfg.options.drill !== false) { cfg.options.onClick = (evt, els, chart) => drill(canvasHost, chart, evt, els); if (!cfg.options.interaction) cfg.options.interaction = { mode: /pie|doughnut/.test(ty) ? 'nearest' : 'index', intersect: false }; const oh = cfg.options.onHover; cfg.options.onHover = (e, els, chart) => { chart.canvas.style.cursor = els.length ? 'pointer' : 'default'; if (oh) oh(e, els, chart); }; }
     const ch = new Chart(c, cfg); live.add(ch); return ch;
   };
+  /** click on a chart: go to the row of the same name in a table on the page (highlighted); otherwise show the numbers behind the bar / point / slice */
+  function drill(host, chart, evt, els) {
+    const el = els && els[0] ? els[0] : (chart.getElementsAtEventForMode ? chart.getElementsAtEventForMode(evt, /pie|doughnut/.test(chart.config.type) ? 'nearest' : 'index', { intersect: false }, true)[0] : null); if (!el) return;
+    const idx = el.index; const label = String((chart.data.labels || [])[idx] == null ? '' : chart.data.labels[idx]).trim(); if (!label) return;
+    const norm1 = (x) => String(x).toLowerCase().replace(/\s+/g, ' ').replace(/[^\p{L}\p{N} ]+/gu, '').trim(); const L = norm1(label.replace(/\s*\(\d+\)\s*$/, ''));
+    const root = host.closest('main') || document.querySelector('main') || document.body;
+    const rows = [...root.querySelectorAll('table tbody tr')].filter((tr) => !tr.closest('.modal'));
+    const hit = rows.find((tr) => { const cells = [...tr.cells].slice(0, 3).map((td) => norm1(td.textContent)); return cells.some((t) => t && L && (t === L || (t.length >= 3 && L.length >= 3 && (t.includes(L) || L.includes(t))))); });
+    if (hit) { hit.scrollIntoView({ behavior: 'smooth', block: 'center' }); hit.classList.remove('drill-hit'); void hit.offsetWidth; hit.classList.add('drill-hit'); setTimeout(() => hit.classList.remove('drill-hit'), 2600); return; }
+    const fmtN = (v) => (typeof v === 'number' ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : v == null ? '–' : String(v));
+    const ds = chart.data.datasets || []; const pie = /pie|doughnut/.test(chart.config.type); const tot = pie && ds[0] ? ds[0].data.reduce((a, b) => a + (+b || 0), 0) : null;
+    const rowsH = ds.map((d) => { const v = d.data[idx]; const nm = pie ? label : d.label || 'Value'; return h('tr', {}, h('td', { class: 'l' }, nm), h('td', {}, fmtN(v)), pie && tot ? h('td', {}, ((v / tot) * 100).toFixed(1) + '%') : null); });
+    const ov = h('div', { class: 'overlay', style: 'z-index:90' }); const close = () => ov.remove(); ov.onclick = (e) => { if (e.target === ov) close(); };
+    ov.append(h('div', { class: 'modal', style: 'max-width:460px' }, h('div', { class: 'mh' }, h('h3', {}, label)), h('div', { class: 'mb' }, h('table', { class: 't' }, h('tbody', {}, ...rowsH)), h('div', { class: 'sub', style: 'margin-top:8px' }, 'These are the figures behind this part of the chart.')), h('div', { class: 'mf' }, h('div', { class: 'spacer' }), h('button', { class: 'btn primary', onclick: close }, 'Close'))));
+    document.body.append(ov);
+  }
   LM.killCharts = () => { live.forEach((c) => c.destroy()); live.clear(); };
   LM.palette = () => ['#2b8a74', '#b8956a', '#c2564a', '#84c6b2', '#6b7f8e', '#d4b38b', '#8a7f70', '#1d1b17'].map((c, i) => c);
 
