@@ -92,9 +92,15 @@
           card('By role: where they are', LM.table([{ k: 'position', label: 'Role', l: 1 }, { k: 'count', label: 'Trainees', fmt: num }, { k: 'note', label: 'Status', l: 1, cls: 'wrap' }], G.roles, { sort: 'count' })));
         setTimeout(() => { gbar(el.querySelector('#c1'), G.roles.map((r) => r.position), G.roles.map((r) => r.count), null, true); gbar(el.querySelector('#c2'), G.pipeline.map((p) => p.label), G.pipeline.map((p) => p.value), '#2c7a7b', true); }); return el;
       }
+      function numoCard(N) {
+        const low = (v) => /%/.test(v) && parseFloat(v) < 95; const cols = [{ k: 'name', label: N.headers[0], l: 1 }, ...N.headers.slice(1).map((hd, i) => ({ k: 's' + i, label: hd, fmt: (v) => (low(v) ? h('span', { style: 'color:var(--warn);font-weight:600' }, v) : v) }))];
+        const rows = N.rows.map((r) => ({ name: r.name, ...Object.fromEntries((r.pending ? [r.pending] : [...r.scores, r.overall]).map((v, i) => ['s' + i, v])) }));
+        if (N.avg) rows.push({ name: 'Team average', ...Object.fromEntries(N.avg.map((v, i) => ['s' + i, v])) });
+        return card('NUMO certification — scores by employee', LM.table(cols, rows, { sort: null }), h('div', { class: 'sub', style: 'margin-top:6px' }, 'Amber = below 95%. Sorted by overall score; overall = average of the 6 areas.'));
+      }
       function gVerification(ds) {
         const G = ds.data.glance; const v = G.verification || {}; const el = h('div', {}, h('div', { class: 'grid kpis' }, kpi('Employees verified', v.verified == null ? '–' : v.verified, v.pct != null ? `${v.pct}% overall` : ''), G.kpis[1] ? kpi('Change', G.kpis[1].sub, '') : null, G.kpis[2] ? kpi('Total visits', G.kpis[2].value, G.kpis[2].sub) : null, G.kpis[3] ? kpi('Training verification', G.kpis[3].value, G.kpis[3].sub) : null, v.share ? kpi(`${v.share.position} share`, `${v.share.pct}%`, `of verified staff · ${v.share.avg}% average`) : null),
-          h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Average verification by position (%)', 'c1', 260), h('div', { class: 'grid', style: 'grid-template-columns:1fr' }, ...progCards(G))));
+          h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Average verification by position (%)', 'c1', 260), h('div', { class: 'grid', style: 'grid-template-columns:1fr' }, ...progCards(G))), G.numo ? numoCard(G.numo) : null);
         setTimeout(() => { if (v.byPosition && v.byPosition.length) LM.chart(el.querySelector('#c1'), { type: 'bar', data: { labels: v.byPosition.map((x) => x.position), datasets: [{ data: v.byPosition.map((x) => x.avg), backgroundColor: LM.css('--accent') }] }, options: { plugins: { legend: { display: false } }, scales: { y: { min: 0, max: 100, ticks: { callback: (x) => x + '%' } } } } }); }); return el;
       }
       function gK2g(ds) {
