@@ -16,7 +16,7 @@
   let active = (location.hash || '#sales').slice(1);
   if (LM.blocks) LM.blocks.attach(panel, () => active);
   if (LM.week && LM.week.attach) LM.week.attach(panel, () => active);
-  if (!depts.some((d) => d.id === active)) active = 'sales';
+  const wantTab = active; if (!depts.some((d) => d.id === active) && !/^cu_/.test(active)) active = 'sales';
 
   async function show(id) {
     active = id; location.hash = id; LM.killCharts();
@@ -55,7 +55,22 @@
   }
   const rin = h('input', { type: 'file', accept: '.json', style: 'display:none', onchange: () => rin.files[0] && restore(rin.files[0]) });
 
-  (LM.ready || Promise.resolve()).catch(() => {}).then(() => {
+  (LM.ready || Promise.resolve()).catch(() => {}).then(async () => {
+  /* the user's own tabs: saved list, shown after the built-in tabs, with a ＋ button to add more */
+  const C = LM.custom; let defs = []; const plus = h('button', { class: 'plus', title: 'Add your own tab', onclick: () => addTab() }, '＋');
+  if (C) {
+    defs = await C.loadDefs();
+    const btnFor = (d) => h('button', { 'data-id': d.id, class: 'cu', onclick: () => show(d.id) }, d.label);
+    const mount = (d) => { depts.push(C.makeDept(d, ctl)); tabs.insertBefore(btnFor(d), plus.parentNode === tabs ? plus : null); };
+    var ctl = {
+      rename: async (id, label) => { const d = defs.find((x) => x.id === id); d.label = label; await C.saveDefs(defs); depts.find((x) => x.id === id).label = label; tabs.querySelector(`button[data-id="${id}"]`).textContent = label; },
+      remove: async (id) => { const raw = await (LM.dbRaw || LM.db).all('datasets'); for (const r of raw.filter((x) => x.dept === id)) await (LM.dbRaw || LM.db).del('datasets', r.id); defs = defs.filter((x) => x.id !== id); await C.saveDefs(defs); const i = depts.findIndex((x) => x.id === id); if (i >= 0) depts.splice(i, 1); tabs.querySelector(`button[data-id="${id}"]`).remove(); LM.toast('Tab deleted'); show('sales'); },
+    };
+    var addTab = async () => { const n = await C.askText('Name of your new tab', '', 'Add tab'); if (!n) return; const d = { id: C.uid(), label: n }; defs.push(d); await C.saveDefs(defs); mount(d); show(d.id); };
+    tabs.append(plus); defs.forEach(mount);
+    if (!(LM.viewOnly || (LM.snapshot && LM.snapshot.active))) { /* editing allowed: keep the ＋ button */ } else plus.remove();
+    if (/^cu_/.test(wantTab) && depts.some((d) => d.id === wantTab)) active = wantTab;
+  }
   const snap = LM.snapshot.active; const view = !!LM.viewOnly; LM.refresh = () => show(active);
   async function saveCopy() { try { await LM.snapshot.download(); } catch (e) { LM.say('Could not create the HTML copy: ' + e.message + (location.protocol === 'file:' ? '\n\nThis page was opened straight from a file; open the hosted dashboard (or the single-file build) to save copies.' : '')); } }
   function clearDialog() {
