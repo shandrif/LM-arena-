@@ -17,6 +17,7 @@
     const hc = /\bhot\b/.test(s) ? 'Hot' : /\bcold+\b/.test(s) ? 'Cold' : null; const size = (/\b(20|40)\s*oz\b/.exec(s) || [])[1];
     const out = (name, family) => ({ name: name.replace(/\s+/g, ' ').trim(), family });
     if (/\b(al ?)?sail\b|alsail/.test(s)) return colour && size ? out(`Alsail Mug ${C} ${size}oz`, 'Alsail') : { unknown: true };
+    if (/\bstable\b/.test(s)) { const lg = /\bl[iy]?gth\b|\blight\b/.test(s) ? 'Light ' : ''; return colour ? out(`Stable Mug – ${lg}${C}`, 'Hot & Cold Mug') : { unknown: true }; } // “Hot&Cold Mug … ( STABLE )” is its own mug, not the Hot / Cold mug of the same colour
     if (/\bsummer\b/.test(s)) return colour && hc ? out(`Summer ${hc} ${C} Mug`, 'Summer') : { unknown: true };
     if (/\bharam\b/.test(s)) return colour ? out(`Al-Haram ${C} Mug`, 'Al-Haram') : { unknown: true };
     if (/\bfaz+a+\b/.test(s)) return hc ? out(`Fazaa ${hc} Mug`, 'National (Fazaa)') : { unknown: true };
