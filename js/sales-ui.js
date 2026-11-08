@@ -7,19 +7,21 @@
     id: 'sales', label: 'Sales',
     async mount(panel) {
       const isAgg = (d) => d.type === 'aggregator';
-      let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1));
+      let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && !d.type).sort((a, b) => (a.start < b.start ? 1 : -1));
       let aggs = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && isAgg(d)).sort((a, b) => (a.end < b.end ? 1 : -1)); let curAgg = aggs[0] ? aggs[0].id : null;
-      let cur = sets[0] ? sets[0].id : null; let sub = sets[0] || !aggs[0] ? 'Days' : 'Sales by aggregators';
+      let stocks = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && d.type === 'mugstock').sort((a, b) => (a.end < b.end ? 1 : -1)); let curStock = stocks[0] ? stocks[0].id : null;
+      let cur = sets[0] ? sets[0].id : null; let sub = sets[0] || (!aggs[0] && !stocks[0]) ? 'Days' : aggs[0] ? 'Sales by aggregators' : 'Mugs';
       const template = async () => ({ ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) });
       let hc = null; // headcount per store of the open week (optional)
       const loadHc = async () => { hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)))[0] || null; };
-      const reload = async () => { const all = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales'); sets = all.filter((d) => !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1)); aggs = all.filter(isAgg).sort((a, b) => (a.end < b.end ? 1 : -1)); if (!aggs.find((s) => s.id === curAgg)) curAgg = aggs[0] ? aggs[0].id : null; await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
+      const reload = async () => { const all = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales'); sets = all.filter((d) => !d.type).sort((a, b) => (a.start < b.start ? 1 : -1)); stocks = all.filter((d) => d.type === 'mugstock').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!stocks.find((x) => x.id === curStock)) curStock = stocks[0] ? stocks[0].id : null; aggs = all.filter(isAgg).sort((a, b) => (a.end < b.end ? 1 : -1)); if (!aggs.find((s) => s.id === curAgg)) curAgg = aggs[0] ? aggs[0].id : null; await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       /* ---------- upload ---------- */
       async function upload(file) {
         let rf;
         try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
         if (LM.aggregator.detect(rf.wb)) return uploadAgg(rf);
+        if (LM.mugstock.detect(rf.wb)) return uploadStock(rf);
         const tpl = await template();
         const ov = { sheets: {}, cols: {}, groupAliases: {} };
         const run = () => {
@@ -70,6 +72,24 @@
             const rec = { id: LM.uid(), dept: 'sales', type: 'aggregator', fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), ...ds }; await LM.db.put('datasets', rec); curAgg = rec.id; sub = 'Sales by aggregators'; await reload(); LM.toast(`Sales by aggregators ${ds.start} → ${ds.end} processed`); } });
         LM.review(info());
       }
+      /* ---------- mug stock (SOH tracker) ---------- */
+      function uploadStock(rf) {
+        const ov = {}; const hint = (sets[0] && sets[0].end) || (LM.week && LM.week.selected) || '';
+        const run = () => LM.mugstock.parse(rf.wb, rf.name, stocks, rf.hash, hint, ov.date); let res = run();
+        const info = () => ({ title: `Review before processing: ${rf.name}`, facts: res.ds ? [['Report', 'Mug stock in stores'], ['Stock date', res.ds.end || '–'], ['Supervisor sheets', res.ds.sheets.join(', ')], ['Stores', num(res.ds.stores.length)], ['Mugs', num(res.ds.items.filter((i) => i.mug).length)], ['Mug units in stores', num(res.ds.stores.reduce((t, s) => t + res.ds.items.filter((i) => i.mug).reduce((a, i) => a + (s.qty[i.key] || 0), 0), 0))]] : [['Report', 'Not recognised']], issues: res.issues,
+          approveLabel: res.ds && stocks.some((x) => x.end === res.ds.end) ? 'Approve & replace existing date' : 'Approve & process', onCancel: () => {},
+          onFix: (fix, val) => { if (fix.type === 'asOf') ov.date = val; res = run(); dlg.update(info()); },
+          onApprove: async () => { const ds = res.ds; if (!ds || !ds.end || res.issues.some((i) => i.level === 'error')) throw new Error('Fix the errors first.'); const same = stocks.find((x) => x.end === ds.end); if (same) { await LM.db.put('history', { ...same, id: LM.uid(), replacedAt: new Date().toISOString() }); await LM.db.del('datasets', same.id); }
+            const rec = { id: LM.uid(), dept: 'sales', type: 'mugstock', fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), ...ds }; await LM.db.put('datasets', rec); curStock = rec.id; sub = 'Mugs'; await reload(); LM.toast(`Mug stock ${ds.end} processed`); } });
+        const dlg = LM.review(info());
+      }
+      let mugLinks = {}; const loadLinks = async () => { mugLinks = ((await LM.db.get('templates', 'sales')) || {}).mugLinks || {}; };
+      async function linkStore(name, key) { const t = { ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) }; t.mugLinks = { ...(t.mugLinks || {}) }; if (key) t.mugLinks[LM.norm(name)] = key; else delete t.mugLinks[LM.norm(name)]; await LM.db.put('templates', t); mugLinks = t.mugLinks; draw(); }
+      function mugsView(ds) {
+        const st = stocks.find((x) => x.id === curStock); if (!st) return h('div', { class: 'empty' }, h('h3', {}, 'No mug stock uploaded yet'), h('p', { class: 'sub' }, 'Upload the SOH Daily Tracker – Mugs & Coffee (.xlsx) with the weekly files. Mug sales come from the sales report.'));
+        return h('div', {}, stocks.length > 1 ? h('div', { class: 'tools' }, h('select', { class: 'sel', onchange: (e) => { curStock = e.target.value; draw(); } }, stocks.map((x) => h('option', { value: x.id, selected: x.id === curStock }, `stock at ${x.end}`)))) : null,
+          LM.mugstock.view(st, ds || null, mugLinks, linkStore, async () => { if (await LM.ask(`Delete the mug stock for ${st.end}?`)) { await LM.db.del('datasets', st.id); reload(); } }));
+      }
       function aggView() {
         const a = aggs.find((s) => s.id === curAgg); if (!a) return h('div', { class: 'empty' }, h('h3', {}, 'No aggregator report uploaded yet'), h('p', { class: 'sub' }, 'Upload the Aggregator Report (.xlsx): Store, Delivery source, Payment type, Bills, Gross sales.'));
         const prev = aggs.find((s) => s.end < a.end);
@@ -87,14 +107,14 @@
           h('div', { class: 'head' }, h('h2', {}, 'Sales'), periodSel, h('div', { class: 'spacer' }), picker), body);
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
-        if (!ds && aggs.length) { const st0 = h('div', { class: 'subtabs' }, h('button', { class: 'on' }, 'Sales by aggregators')); return body.replaceChildren(st0, aggView()); }
+        if (!ds && (aggs.length || stocks.length)) { const avail = [...(aggs.length ? ['Sales by aggregators'] : []), ...(stocks.length ? ['Mugs'] : [])]; if (!avail.includes(sub)) sub = avail[0]; const st0 = h('div', { class: 'subtabs' }, avail.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))); return body.replaceChildren(st0, sub === 'Mugs' ? mugsView(null) : aggView()); }
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No sales report uploaded yet'),
           h('p', { class: 'sub' }, 'Drop the Sales Performance Report (.xlsx) here, or use the Upload button.'),
           h('p', { class: 'sub' }, 'Expected sheets: Data TY (Day, Store, Net sales, Bills), Data LY (same, last year), Data Items (Store, Order type, Item group, Item, Qty, Net sales).')));
         const c = S.compute(ds);
-        const tabs = ['Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Sales by aggregators', 'Uploads'];
+        const tabs = ['Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Mugs', 'Sales by aggregators', 'Uploads'];
         const st = h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t)));
-        const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, 'Sales by aggregators': aggView, Uploads: uploads }[sub](ds, c);
+        const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, Mugs: mugsView, 'Sales by aggregators': aggView, Uploads: uploads }[sub](ds, c);
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Report ${ds.start} → ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), st, v);
       }
 
@@ -265,7 +285,7 @@
             h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the report for ${s.start} → ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
 
-      await loadHc(); // also on the first draw, so the headcount is there after a refresh
+      await loadLinks(); await loadHc(); // also on the first draw, so the headcount is there after a refresh
       draw();
     },
   };
