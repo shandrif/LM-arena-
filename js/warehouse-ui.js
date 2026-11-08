@@ -18,7 +18,8 @@
     id: 'warehouse', label: 'Warehouse',
     async mount(panel) {
       let sets = [], cur = null, sub = 'Scorecard', mugSec = 'All', mugQ = '', invQ = '';
-      const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'warehouse').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
+      let storeStock = null, mugLinks = {};
+      const reload = async () => { const all = await LM.db.all('datasets'); storeStock = all.find((d) => d.dept === 'mugstock') || null; mugLinks = ((await LM.db.get('templates', 'warehouse')) || {}).mugLinks || {}; sets = all.filter((d) => d.dept === 'warehouse').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
         let rf; try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
@@ -120,6 +121,7 @@
       }
 
       /* ---------- Mugs ---------- */
+      async function linkMug(mug, itemName) { const t = { dept: 'warehouse', ...((await LM.db.get('templates', 'warehouse')) || {}) }; t.mugLinks = { ...(t.mugLinks || {}), [mug]: itemName }; await LM.db.put('templates', t); mugLinks = t.mugLinks; draw(); }
       function mugs(ds) {
         const m = ds.data.mugs; if (!m) return missing('The Mug SOH report'); const W = m.warehouses; const secs = ['All', ...new Set(m.items.map((i) => i.type))];
         const tot = (sec) => m.items.filter((i) => sec === 'All' || i.type === sec).reduce((s, i) => s + (i.total || 0), 0);
@@ -129,7 +131,7 @@
         const search = h('input', { type: 'search', placeholder: 'Search mug…' }); const secSel = h('select', { class: 'sel' }, secs.map((x) => h('option', { selected: x === mugSec }, x))); const tbl = LM.table(cols, rowsAll, { sort: 'total' });
         const ap = () => { mugSec = secSel.value; tbl.redraw(rowsAll.filter((r) => (mugSec === 'All' || r.type === mugSec) && r.name.toLowerCase().includes(search.value.toLowerCase()))); }; search.oninput = ap; secSel.onchange = ap;
         const plan = ds.data.mugPlan; const planRows = plan ? plan.rows.map((x) => ({ ...x, gap: x.actual != null && x.soh != null ? x.actual - x.soh : null })) : [];
-        const el = h('div', {}, h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Mug stock on hand${m.date ? ' as of ' + m.date : ''}.`),
+        const el = h('div', {}, LM.mugCompare ? LM.mugCompare.card(storeStock, m, mugLinks, linkMug) : null, h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Mug stock on hand${m.date ? ' as of ' + m.date : ''}.`),
           h('div', { class: 'grid kpis' }, kpi('Total mugs', num(grand), `${m.items.length} mug types`), secs.filter((x) => x !== 'All').map((s) => kpi(s, num(tot(s)), `${m.items.filter((i) => i.type === s).length} types`)), kpi('Out of stock', zero.length, zero.slice(0, 3).map((i) => i.name.trim()).join(', ') + (zero.length > 3 ? '…' : ''))),
           h('div', { class: 'grid half', style: 'margin-bottom:12px' }, chartCard('Mugs by warehouse', 'c1'), chartCard('Top 12 mugs by stock', 'c2')),
           h('div', { class: 'tools' }, search, secSel, h('button', { class: 'btn small', onclick: () => LM.csv(cols, rowsAll, `mugs-${ds.end}.csv`) }, 'Export CSV')), tbl,
