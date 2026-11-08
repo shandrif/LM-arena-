@@ -7,21 +7,25 @@
     id: 'sales', label: 'Sales',
     async mount(panel) {
       const isAgg = (d) => d.type === 'aggregator';
-      let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && !d.type).sort((a, b) => (a.start < b.start ? 1 : -1));
+      let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1));
       let aggs = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && isAgg(d)).sort((a, b) => (a.end < b.end ? 1 : -1)); let curAgg = aggs[0] ? aggs[0].id : null;
-      let stocks = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && d.type === 'mugstock').sort((a, b) => (a.end < b.end ? 1 : -1)); let curStock = stocks[0] ? stocks[0].id : null;
-      let cur = sets[0] ? sets[0].id : null; let sub = sets[0] || (!aggs[0] && !stocks[0]) ? 'Days' : aggs[0] ? 'Sales by aggregators' : 'Mugs';
+      let cur = sets[0] ? sets[0].id : null; let sub = sets[0] || !aggs[0] ? 'Days' : 'Sales by aggregators';
       const template = async () => ({ ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) });
       let hc = null; // headcount per store of the open week (optional)
-      const loadHc = async () => { hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)))[0] || null; };
-      const reload = async () => { const all = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales'); sets = all.filter((d) => !d.type).sort((a, b) => (a.start < b.start ? 1 : -1)); stocks = all.filter((d) => d.type === 'mugstock').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!stocks.find((x) => x.id === curStock)) curStock = stocks[0] ? stocks[0].id : null; aggs = all.filter(isAgg).sort((a, b) => (a.end < b.end ? 1 : -1)); if (!aggs.find((s) => s.id === curAgg)) curAgg = aggs[0] ? aggs[0].id : null; await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
+      let allSales = []; // sales reports of every loaded week (a week only lists its own), for the Mugs “since previous upload” tile
+      let ms = null, msWeek = null, msPrev = null; // mug stock: shown file, this week's own file, the file before the shown one
+      const wkOf = (d) => d.week || d.end || '';
+      const loadMs = async () => { const all = (await (LM.dbRaw || LM.db).all('datasets')).filter((d) => d && d.dept === 'mugstock').sort((a, b) => (wkOf(a) < wkOf(b) ? 1 : wkOf(a) > wkOf(b) ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)));
+        msWeek = (await LM.db.all('datasets')).find((d) => d.dept === 'mugstock') || null; const sel = (LM.week && LM.week.selected) || '9999';
+        ms = msWeek || all.find((d) => wkOf(d) <= sel) || null; msPrev = ms ? all.find((d) => d.id !== ms.id && wkOf(d) < wkOf(ms)) || null : null; };
+      const loadHc = async () => { await loadMs(); allSales = (await (LM.dbRaw || LM.db).all('datasets')).filter((d) => d && d.dept === 'sales'); hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)))[0] || null; };
+      const reload = async () => { const allS = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales'); sets = allS.filter((d) => !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1)); aggs = allS.filter(isAgg).sort((a, b) => (a.end < b.end ? 1 : -1)); if (!aggs.find((x) => x.id === curAgg)) curAgg = aggs[0] ? aggs[0].id : null; await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       /* ---------- upload ---------- */
       async function upload(file) {
         let rf;
         try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
         if (LM.aggregator.detect(rf.wb)) return uploadAgg(rf);
-        if (LM.mugstock.detect(rf.wb)) return uploadStock(rf);
         const tpl = await template();
         const ov = { sheets: {}, cols: {}, groupAliases: {} };
         const run = () => {
@@ -72,24 +76,6 @@
             const rec = { id: LM.uid(), dept: 'sales', type: 'aggregator', fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), ...ds }; await LM.db.put('datasets', rec); curAgg = rec.id; sub = 'Sales by aggregators'; await reload(); LM.toast(`Sales by aggregators ${ds.start} → ${ds.end} processed`); } });
         LM.review(info());
       }
-      /* ---------- mug stock (SOH tracker) ---------- */
-      function uploadStock(rf) {
-        const ov = {}; const hint = (sets[0] && sets[0].end) || (LM.week && LM.week.selected) || '';
-        const run = () => LM.mugstock.parse(rf.wb, rf.name, stocks, rf.hash, hint, ov.date); let res = run();
-        const info = () => ({ title: `Review before processing: ${rf.name}`, facts: res.ds ? [['Report', 'Mug stock in stores'], ['Stock date', res.ds.end || '–'], ['Supervisor sheets', res.ds.sheets.join(', ')], ['Stores', num(res.ds.stores.length)], ['Mugs', num(res.ds.items.filter((i) => i.mug).length)], ['Mug units in stores', num(res.ds.stores.reduce((t, s) => t + res.ds.items.filter((i) => i.mug).reduce((a, i) => a + (s.qty[i.key] || 0), 0), 0))]] : [['Report', 'Not recognised']], issues: res.issues,
-          approveLabel: res.ds && stocks.some((x) => x.end === res.ds.end) ? 'Approve & replace existing date' : 'Approve & process', onCancel: () => {},
-          onFix: (fix, val) => { if (fix.type === 'asOf') ov.date = val; res = run(); dlg.update(info()); },
-          onApprove: async () => { const ds = res.ds; if (!ds || !ds.end || res.issues.some((i) => i.level === 'error')) throw new Error('Fix the errors first.'); const same = stocks.find((x) => x.end === ds.end); if (same) { await LM.db.put('history', { ...same, id: LM.uid(), replacedAt: new Date().toISOString() }); await LM.db.del('datasets', same.id); }
-            const rec = { id: LM.uid(), dept: 'sales', type: 'mugstock', fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), ...ds }; await LM.db.put('datasets', rec); curStock = rec.id; sub = 'Mugs'; await reload(); LM.toast(`Mug stock ${ds.end} processed`); } });
-        const dlg = LM.review(info());
-      }
-      let mugLinks = {}; const loadLinks = async () => { mugLinks = ((await LM.db.get('templates', 'sales')) || {}).mugLinks || {}; };
-      async function linkStore(name, key) { const t = { ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) }; t.mugLinks = { ...(t.mugLinks || {}) }; if (key) t.mugLinks[LM.norm(name)] = key; else delete t.mugLinks[LM.norm(name)]; await LM.db.put('templates', t); mugLinks = t.mugLinks; draw(); }
-      function mugsView(ds) {
-        const st = stocks.find((x) => x.id === curStock); if (!st) return h('div', { class: 'empty' }, h('h3', {}, 'No mug stock uploaded yet'), h('p', { class: 'sub' }, 'Upload the SOH Daily Tracker – Mugs & Coffee (.xlsx) with the weekly files. Mug sales come from the sales report.'));
-        return h('div', {}, stocks.length > 1 ? h('div', { class: 'tools' }, h('select', { class: 'sel', onchange: (e) => { curStock = e.target.value; draw(); } }, stocks.map((x) => h('option', { value: x.id, selected: x.id === curStock }, `stock at ${x.end}`)))) : null,
-          LM.mugstock.view(st, ds || null, mugLinks, linkStore, async () => { if (await LM.ask(`Delete the mug stock for ${st.end}?`)) { await LM.db.del('datasets', st.id); reload(); } }));
-      }
       function aggView() {
         const a = aggs.find((s) => s.id === curAgg); if (!a) return h('div', { class: 'empty' }, h('h3', {}, 'No aggregator report uploaded yet'), h('p', { class: 'sub' }, 'Upload the Aggregator Report (.xlsx): Store, Delivery source, Payment type, Bills, Gross sales.'));
         const prev = aggs.find((s) => s.end < a.end);
@@ -107,14 +93,14 @@
           h('div', { class: 'head' }, h('h2', {}, 'Sales'), periodSel, h('div', { class: 'spacer' }), picker), body);
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
-        if (!ds && (aggs.length || stocks.length)) { const avail = [...(aggs.length ? ['Sales by aggregators'] : []), ...(stocks.length ? ['Mugs'] : [])]; if (!avail.includes(sub)) sub = avail[0]; const st0 = h('div', { class: 'subtabs' }, avail.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))); return body.replaceChildren(st0, sub === 'Mugs' ? mugsView(null) : aggView()); }
+        if (!ds && aggs.length) { const st0 = h('div', { class: 'subtabs' }, h('button', { class: 'on' }, 'Sales by aggregators')); return body.replaceChildren(st0, aggView()); }
         if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No sales report uploaded yet'),
           h('p', { class: 'sub' }, 'Drop the Sales Performance Report (.xlsx) here, or use the Upload button.'),
           h('p', { class: 'sub' }, 'Expected sheets: Data TY (Day, Store, Net sales, Bills), Data LY (same, last year), Data Items (Store, Order type, Item group, Item, Qty, Net sales).')));
         const c = S.compute(ds);
         const tabs = ['Days', 'Branches', 'Item groups', 'Items', 'Heat map', 'Mugs', 'Sales by aggregators', 'Uploads'];
         const st = h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t)));
-        const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, Mugs: mugsView, 'Sales by aggregators': aggView, Uploads: uploads }[sub](ds, c);
+        const v = { Overview: overview, Days: days, Branches: branches, 'Item groups': groups, Items: items, 'Heat map': heat, Mugs: mugs, 'Sales by aggregators': aggView, Uploads: uploads }[sub](ds, c);
         body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `Report ${ds.start} → ${ds.end} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), st, v);
       }
 
@@ -279,13 +265,134 @@
           h('div', { class: 'tscroll' }, h('table', { class: 't heat' }, h('thead', {}, head), h('tbody', {}, trs))));
       }
 
+      /* ---------- Mugs: sales of every mug, by family, by store ---------- */
+      function mugs(ds) { return h('div', {}, mugSales(ds), mugStock()); }
+      function mugSales(ds) {
+        if (!ds.items || !ds.items.length) return h('div', { class: 'banner' }, 'This report has no item data, so mug sales cannot be shown.');
+        const m = S.mugs(ds);
+        if (!m.items.length) return h('div', { class: 'banner' }, 'No mugs were found in this report’s item sales.');
+        const main = m.families.filter((f) => f.share >= 0.005), small = m.families.filter((f) => f.share < 0.005); // families under 0.5% of mug sales share one “Other mugs” bar / column
+        const OTHER = 'Other mugs'; m.mainFams = [...main.map((f) => f.name), ...(small.length ? [OTHER] : [])]; m.otherOf = new Set(small.map((f) => f.name));
+        m.stores.forEach((x) => { x.col = {}; Object.entries(x.fam).forEach(([f, v]) => { const k = m.otherOf.has(f) ? OTHER : f; x.col[k] = (x.col[k] || 0) + v; }); });
+        const chartFams = [...main.map((f) => [f.name, f.sales]), ...(small.length ? [[OTHER, small.reduce((t, f) => t + f.sales, 0)]] : [])];
+        // the report is month-to-date: the earlier upload of the same period gives what was sold in between
+        const prev = [...sets, ...allSales].filter((s) => s.start === ds.start && s.end < ds.end).sort((a, b) => (a.end < b.end ? 1 : -1))[0];
+        const pm = prev ? S.mugs(prev) : null;
+        const nextDay = (d) => { const t = new Date(d + 'T00:00:00Z'); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10); };
+        const between = pm ? `${dayLabel(nextDay(prev.end))} – ${dayLabel(ds.end)}` : '';
+        const el = h('div', {},
+          h('div', { class: 'grid kpis' },
+            kpi('Mug sales', num(m.total), 'SAR'),
+            kpi('Mugs sold', num(m.qty), 'pieces'),
+            kpi('Average price', num2(m.avg), 'SAR per mug'),
+            kpi('Share of all sales', m.share == null ? '–' : pct0(m.share), 'of item sales'),
+            kpi('Stores selling mugs', num(m.storesSelling), `${num(m.items.length)} different mugs`),
+            kpi(pm ? `Mug sales ${between}` : 'Since previous upload', pm ? num(m.total - pm.total) : '–', pm ? `${num(m.qty - pm.qty)} mugs` : 'no earlier upload of this period')),
+          h('div', { class: 'grid two', style: 'margin-bottom:12px' }, chartCard('Mug sales by family (SAR)', 'm1'), chartCard('Top 10 stores: mug sales (SAR)', 'm2')),
+          mugFamilyCard(m), mugItemsCard(ds, m), mugStoreCard(ds, m),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, 'Mugs = items whose name contains “Mug”. Free refills (“Repeated Hot/Cold Mug”) and refill drinks (“Non HM Mug … Refill”) are not counted. Spelling variants of one mug (a trailing “\\”, “Sig”, “(Signuture)”) are added together. Figures cover the whole report period' + (pm ? `; the last tile is this report minus the upload for ${prev.start} → ${prev.end}.` : '.')));
+        setTimeout(() => {
+          const pal = LM.palette();
+          LM.chart(el.querySelector('#m1'), { type: 'bar', data: { labels: chartFams.map((f) => f[0]), datasets: [{ data: chartFams.map((f) => f[1]), backgroundColor: pal[0] }] },
+            options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (i) => num(i.raw) + ' SAR' } } }, scales: { x: { ticks: { callback: (v) => compact(v) } } } } });
+          const t = m.stores.slice(0, 10);
+          LM.chart(el.querySelector('#m2'), { type: 'bar', data: { labels: t.map((x) => x.name.slice(0, 26)), datasets: [{ data: t.map((x) => x.sales), backgroundColor: ty$() }] },
+            options: { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: (i) => num(i.raw) + ' SAR' } } }, scales: { x: { ticks: { callback: (v) => compact(v) } } } } });
+        });
+        return el;
+      }
+      function mugFamilyCard(m) {
+        const cols = [{ k: 'name', label: 'Mug family', l: 1 }, { k: 'items', label: 'Mugs', fmt: num }, { k: 'qty', label: 'Quantity', fmt: num }, { k: 'sales', label: 'Net sales', fmt: num }, { k: 'avg', label: 'Avg price', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'share', label: 'Share', fmt: pct0 }];
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Mug families'), LM.table(cols, m.families, { sort: 'sales' }));
+      }
+      function mugItemsCard(ds, m) {
+        const cols = [{ k: 'name', label: 'Mug', l: 1, cls: 'wrap' }, { k: 'family', label: 'Family', l: 1 }, { k: 'qty', label: 'Quantity', fmt: num }, { k: 'sales', label: 'Net sales', fmt: num }, { k: 'avg', label: 'Avg price', fmt: (v) => (v == null ? '–' : num2(v)) }, { k: 'share', label: 'Share', fmt: pct0 }, { k: 'stores', label: 'Stores selling', fmt: num }];
+        const search = h('input', { type: 'search', placeholder: 'Search mug…' }); const fam = h('select', { class: 'sel' }, ['All families', ...m.families.map((f) => f.name)].map((x) => h('option', {}, x)));
+        const tbl = LM.table(cols, m.items, { sort: 'sales' });
+        const apply = () => { const q = search.value.toLowerCase(); tbl.redraw(m.items.filter((i) => i.name.toLowerCase().includes(q) && (fam.value === 'All families' || i.family === fam.value))); };
+        search.oninput = apply; fam.onchange = apply;
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Every mug'), h('div', { class: 'spacer' }), search, fam, h('button', { class: 'btn small', onclick: () => LM.csv(cols, m.items, `mugs-${ds.start}-${ds.end}.csv`) }, 'Export CSV')), tbl);
+      }
+      function mugStoreCard(ds, m) {
+        const F = m.mainFams;
+        const head = h('tr', {}, h('th', { class: 'l', style: 'position:sticky;left:0;background:var(--surface)' }, 'Store'), F.map((f) => h('th', {}, f)), h('th', {}, 'Mug sales'), h('th', {}, 'Mugs sold'), h('th', { title: 'Mug sales ÷ all item sales of the store' }, 'Mugs % of store'));
+        const trs = m.stores.map((x) => { const mx = Math.max(...F.map((f) => x.col[f] || 0), 1);
+          return h('tr', {}, h('td', { class: 'l', style: 'position:sticky;left:0;background:var(--surface);white-space:nowrap' }, x.name), F.map((f) => { const v = x.col[f] || 0; return v ? h('td', { style: `background:color-mix(in srgb, var(--accent) ${Math.round((v / mx) * 70)}%, transparent)` }, num(v)) : h('td', { class: 'z' }, '–'); }),
+            h('td', { style: 'font-weight:700' }, num(x.sales)), h('td', {}, num(x.qty)), h('td', {}, x.share == null ? '–' : pct0(x.share))); });
+        const csvCols = [{ k: 'name', label: 'Store' }, ...F.map((f, i) => ({ k: 'f' + i, label: f })), { k: 'sales', label: 'Mug sales' }, { k: 'qty', label: 'Mugs sold' }, { k: 'share', label: 'Mugs % of store sales' }];
+        const csvRows = m.stores.map((x) => ({ name: x.name, ...Object.fromEntries(F.map((f, i) => ['f' + i, Math.round((x.col[f] || 0) * 100) / 100])), sales: Math.round(x.sales * 100) / 100, qty: x.qty, share: x.share == null ? '' : Math.round(x.share * 1000) / 10 }));
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Mug sales by store and family (SAR)'), h('div', { class: 'spacer' }), h('button', { class: 'btn small', onclick: () => LM.csv(csvCols, csvRows, `mugs-by-store-${ds.start}-${ds.end}.csv`) }, 'Export CSV')),
+          h('div', { class: 'tscroll', style: 'max-height:560px;overflow:auto' }, h('table', { class: 't heat' }, h('thead', {}, head), h('tbody', {}, trs))),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, `Darker = the family that store sells most of. Stores are sorted by mug sales.${m.otherOf.size ? ` Other mugs = ${[...m.otherOf].join(', ')}.` : ''}`));
+      }
+
+      /* ---------- Mugs stock in branches (weekly SOH tracker, one sheet per ROM) ---------- */
+      let msRom = 'All ROMs', msView = 'mug', msQ = '';
+      const shortMug = (n) => n.replace(/^Alsail Mug |^Coffee Mug – |^Al-Haram |^Summer |^Fazaa /, '').replace(/ Mug – /, ' ').replace(/ Mug$/, '');
+      const sgn = (v) => (v > 0 ? '+' : '') + num(v);
+      function mugStock() {
+        const pick = LM.filePicker((f) => LM.mugstock.upload(f, { existing: msWeek, done: reload }), msWeek ? 'Replace mug stock' : 'Upload mug stock', false, '.xlsx,.xls,.xlsm');
+        const rm = msWeek ? h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask('Remove the mug stock file of this week?')) { await LM.db.del('datasets', msWeek.id); reload(); } } }, 'Remove') : null;
+        const head = h('div', { class: 'tools', style: 'margin:22px 0 10px' }, h('h2', { style: 'margin:0' }, 'Mugs stock in branches'), h('div', { class: 'spacer' }), ms ? h('span', { class: 'sub' }, `${ms.fileName} · uploaded ${String(ms.uploadedAt).slice(0, 16).replace('T', ' ')}`) : null, pick, rm);
+        if (!ms) return h('div', {}, head, h('div', { class: 'card' }, h('p', { class: 'sub', style: 'margin:0' }, 'No stock file yet. Upload the weekly “SOH Daily Tracker – Mugs & Coffee” workbook (one sheet per ROM, stores across the top). Only the mug rows are read; every row is checked against its sheet’s Total before anything is saved.')));
+        const V = LM.mugstock.view(ms), P = msPrev ? LM.mugstock.view(msPrev) : null;
+        const prevStore = P ? Object.fromEntries(P.stores.map((x) => [x.key.toLowerCase(), x])) : {};
+        const el = h('div', {}, head,
+          msWeek ? null : h('div', { class: 'banner', style: 'margin-bottom:12px' }, `No stock file for this week yet. Showing the one for the week ending ${wkOf(ms)}.`),
+          h('div', { class: 'grid kpis' },
+            kpi('Mugs in stock', num(V.total), `${V.mugs.length} mugs`),
+            kpi('Stores', num(V.stores.length), `${V.roms.length} ROMs`),
+            kpi('At zero', num(V.zeros.length), 'store × mug with 0 stock'),
+            kpi('Change vs previous file', P ? sgn(V.total - P.total) : '–', P ? `week ending ${wkOf(msPrev)}` : 'no earlier stock file')),
+          LM.mugsByStore ? LM.mugsByStore.card(V, sets.find((x) => x.id === cur) || null) : null, stockByMugCard(V, P), stockByStoreCard(V, prevStore, !!P));
+        return el;
+      }
+      function stockByMugCard(V, P) {
+        const rem = {}; V.remarks.forEach((r) => { (rem[r.mug + '|' + r.rom] = rem[r.mug + '|' + r.rom] || []).push(r.text); });
+        const cell = (m, r) => { const v = (V.byMugRom[m] || {})[r]; const t = rem[m + '|' + r]; return h('td', { title: t ? t.join(' / ') : '', style: v === 0 ? 'background:var(--bad-bg)' : '' }, v == null ? '–' : num(v), t ? ' *' : ''); };
+        const mt = (m) => Object.values(V.byMugRom[m] || {}).reduce((a, b) => a + b, 0); const pm = (m) => (P ? Object.values(P.byMugRom[m] || {}).reduce((a, b) => a + b, 0) : null);
+        const rows = [];
+        V.families.forEach((f) => { const ms_ = V.mugs.filter((m) => m.family === f);
+          rows.push(h('tr', { style: 'font-weight:700;background:var(--surface-2, rgba(0,0,0,.03))' }, h('td', { class: 'l' }, f), ...V.roms.map((r) => { const vs = ms_.map((m) => (V.byMugRom[m.name] || {})[r]).filter((v) => v != null); return h('td', {}, vs.length ? num(vs.reduce((t, v) => t + v, 0)) : '–'); }), h('td', {}, num(ms_.reduce((t, m) => t + mt(m.name), 0))), P ? h('td', {}, sgn(ms_.reduce((t, m) => t + mt(m.name) - pm(m.name), 0))) : null));
+          ms_.forEach((m) => rows.push(h('tr', {}, h('td', { class: 'l', style: 'padding-left:22px' }, m.name), ...V.roms.map((r) => cell(m.name, r)), h('td', { style: 'font-weight:700' }, num(mt(m.name))), P ? h('td', {}, sgn(mt(m.name) - pm(m.name))) : null))); });
+        rows.push(h('tr', { style: 'font-weight:700' }, h('td', { class: 'l' }, 'All mugs'), ...V.roms.map((r) => h('td', {}, num(V.romTot[r] || 0))), h('td', {}, num(V.total)), P ? h('td', {}, sgn(V.total - P.total)) : null));
+        const notes = V.remarks.length ? h('div', { class: 'sub', style: 'margin-top:6px' }, '* Remarks in the file: ', [...new Set(V.remarks.map((r) => `${r.rom}: ${r.text}`))].join(' · '), '. Hover a cell to see its remark.') : null;
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Stock by mug and ROM'),
+          h('div', { style: 'overflow-x:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, h('th', { class: 'l' }, 'Mug'), ...V.roms.map((r) => h('th', {}, r)), h('th', {}, 'Total'), P ? h('th', {}, 'vs previous') : null)), h('tbody', {}, rows))),
+          h('div', { class: 'sub', style: 'margin-top:6px' }, 'Added up by mug name from each ROM sheet (the workbook’s own “Total” sheet is not used: it adds rows by position, which mixes up mugs listed in a different order). Red = 0 in stock.'), notes);
+      }
+      function stockByStoreCard(V, prevStore, hasPrev) {
+        const host = h('div');
+        const romSel = h('select', { class: 'sel', onchange: (e) => { msRom = e.target.value; paint(); } }, ['All ROMs', ...V.roms].map((r) => h('option', { selected: r === msRom }, r)));
+        const search = h('input', { type: 'search', placeholder: 'Search store…', value: msQ, oninput: (e) => { msQ = e.target.value; paint(); } });
+        const vb = (k, l) => h('button', { class: 'btn small' + (msView === k ? ' primary' : ''), onclick: () => { msView = k; card.replaceWith(stockByStoreCard(V, prevStore, hasPrev)); } }, l);
+        const cols = msView === 'mug' ? V.mugs.map((m) => ({ k: m.name, label: shortMug(m.name), group: m.family, get: (s) => s.mug[m.name] })) : V.families.map((f) => ({ k: f, label: f, get: (s) => { const vs = V.mugs.filter((m) => m.family === f).map((m) => s.mug[m.name]).filter((v) => v != null); return vs.length ? vs.reduce((t, v) => t + v, 0) : null; } }));
+        const prevOf = (s) => { const p = prevStore[s.key.toLowerCase()]; return p && p.reported && s.reported ? s.total - p.total : null; };
+        const td = (v) => (v == null ? h('td', { class: 'z' }, '–') : h('td', { style: v === 0 ? 'background:var(--bad-bg)' : '' }, num(v)));
+        const groupRow = msView === 'mug' ? h('tr', {}, h('th', { class: 'l', style: 'position:sticky;left:0;background:var(--surface)' }, ''), ...V.families.map((f) => h('th', { colspan: V.mugs.filter((m) => m.family === f).length, style: 'text-align:center;border-bottom:1px solid var(--line, #ddd)' }, f)), h('th', {}, ''), hasPrev ? h('th', {}, '') : null) : null;
+        const headRow = h('tr', {}, h('th', { class: 'l', style: 'position:sticky;left:0;background:var(--surface)' }, 'Store'), ...cols.map((c) => h('th', { title: c.k, style: 'white-space:nowrap' }, c.label)), h('th', {}, 'Total'), hasPrev ? h('th', { title: 'Store total minus its total in the previous stock file' }, 'vs previous') : null);
+        function paint() {
+          const q = msQ.toLowerCase(); const roms = msRom === 'All ROMs' ? V.roms : [msRom]; const body = [];
+          roms.forEach((r) => { const st = V.stores.filter((s) => s.rom === r && s.name.toLowerCase().includes(q)); if (!st.length) return;
+            const sumC = (c) => { const vs = st.map((s) => c.get(s)).filter((v) => v != null); return vs.length ? vs.reduce((t, v) => t + v, 0) : null; }; const tot = st.reduce((t, s) => t + s.total, 0); const pv = st.map(prevOf).filter((x) => x != null);
+            body.push(h('tr', { style: 'font-weight:700;background:var(--surface-2, rgba(0,0,0,.03))' }, h('td', { class: 'l', style: 'position:sticky;left:0;background:var(--surface)' }, `${r} (${st.length} stores)`), ...cols.map((c) => h('td', {}, sumC(c) == null ? '–' : num(sumC(c)))), h('td', {}, num(tot)), hasPrev ? h('td', {}, pv.length ? sgn(pv.reduce((a, b) => a + b, 0)) : '–') : null));
+            st.forEach((s) => body.push(h('tr', {}, h('td', { class: 'l', style: 'position:sticky;left:0;background:var(--surface);white-space:nowrap;padding-left:18px' }, s.name), ...cols.map((c) => td(c.get(s))), h('td', { style: 'font-weight:700' }, s.reported ? num(s.total) : '–'), hasPrev ? h('td', {}, prevOf(s) == null ? '–' : sgn(prevOf(s))) : null))); });
+          host.replaceChildren(body.length ? h('div', { style: 'overflow:auto;max-height:620px' }, h('table', { class: 't' }, h('thead', { style: 'position:sticky;top:0;z-index:2;background:var(--surface)' }, groupRow, headRow), h('tbody', {}, body))) : h('p', { class: 'sub' }, 'No store matches.'));
+        }
+        const csv = () => { const cc = [{ k: 'rom', label: 'ROM' }, { k: 'store', label: 'Store' }, ...cols.map((c, i) => ({ k: 'c' + i, label: c.k })), { k: 'total', label: 'Total' }];
+          LM.csv(cc, V.stores.map((s) => ({ rom: s.rom, store: s.name, ...Object.fromEntries(cols.map((c, i) => ['c' + i, c.get(s) == null ? '' : c.get(s)])), total: s.reported ? s.total : '' })), `mug-stock-by-store-${wkOf(ms)}.csv`); };
+        const card = h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Stock by store'), h('div', { class: 'spacer' }), romSel, search, vb('mug', 'By mug'), vb('family', 'By family'), h('button', { class: 'btn small', onclick: csv }, 'Export CSV')),
+          host, h('div', { class: 'sub', style: 'margin-top:6px' }, 'Exactly the quantities in the ROM sheets. Red = 0 in stock; “–” = the cell is empty in the file (no figure). Stores are listed in the same order as in the file.'));
+        paint(); return card;
+      }
+
       function uploads() {
         return h('div', { class: 'card' }, h('h3', {}, 'Uploaded sales reports'), h('table', { class: 't' }, h('thead', {}, h('tr', {}, ['Period', 'File', 'Uploaded', 'Rows', ''].map((t) => h('th', { class: 'l' }, t)))),
           h('tbody', {}, sets.map((s) => h('tr', {}, h('td', { class: 'l' }, `${s.start} → ${s.end}`), h('td', { class: 'l' }, s.fileName), h('td', { class: 'l' }, s.uploadedAt.slice(0, 16).replace('T', ' ')), h('td', { class: 'l' }, `${s.ty.length} / ${s.ly.length} / ${s.items.length}`),
             h('td', {}, h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the report for ${s.start} → ${s.end}?`)) { await LM.db.del('datasets', s.id); reload(); } } }, 'Delete')))))));
       }
 
-      await loadLinks(); await loadHc(); // also on the first draw, so the headcount is there after a refresh
+      await loadHc(); // also on the first draw, so the headcount is there after a refresh
       draw();
     },
   };
