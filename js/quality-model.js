@@ -64,7 +64,7 @@
     const hasText = (re, maxSheets = 3) => wb.SheetNames.slice(0, maxSheets).some((n) => rows(wb, n).slice(0, 60).some((r) => (r || []).some((v) => typeof v === 'string' && re.test(v))));
     if (names.includes('weeklytrend') || wb.SheetNames.some((n) => rows(wb, n).slice(0, 5).some((r) => (r || []).some((v) => norm(v) === 'qualitycomplaints')))) return 'trend';
     if (hasText(/quality inspections? points|pending capa/i) || names.includes('coo')) return 'coo';
-    if (hasText(/factory audit|audit overview/i)) return 'audit';
+    if (hasText(/factory audit|audit overview|roasting audit checklist/i)) return 'audit';
     if (names.some((n) => /storevisit|geocompliance/.test(n)) || hasText(/store visit|geo compliance/i)) return 'visits';
     if (names.includes('wifi') || hasText(/^wi-?fi/i) || wb.SheetNames.some((n) => { const g = rows(wb, n).slice(0, 8); return g.some((r) => (r || []).some((v) => norm(v) === 'branch') && (r || []).some((v) => norm(v) === 'status')); })) return 'wifi';
     return null;
@@ -171,8 +171,44 @@
     return { issues, start, end, data: { kpis: k, groups, blocks: blocks.map(({ ranges, ...b }) => ({ ...b, ends: ranges.map((r) => (r ? r.end : null)) })), cases } };
   }
 
+  /* Full checklist workbook ("Coffee Roasting Audit Checklist"): scoring block on top, one row per item below. */
+  function parseChecklist(wb, name, sn, g) {
+    const issues = []; const dm = (s) => { const m = /(\d{1,2})[.\/-](\d{1,2})[.\/-](20\d\d)/.exec(String(s || '')); return m ? iso(+m[3], +m[2], +m[1]) : null; };
+    const date = dm(name) || dm(sn) || dm(wb.SheetNames.join(' '));
+    if (!date) issues.push(I('error', 'The audit date could not be found. Put it in the file name or sheet name, e.g. "…04.11.2026.xlsx".'));
+    const val = (re, label, req = true) => { const f = findCell(g, re); if (!f) { if (req) issues.push(I('error', `"${label}" not found.`)); return null; } return nextVal(g, f[0], f[1]); };
+    const pass = numOf(val(/^passing score/i, 'Passing Score')), score = numOf(val(/^score achieved/i, 'Score Achieved')); const result = txt(val(/^Audit Result$/, 'Audit Result'));
+    const crit = numOf(val(/^critical issues/i, 'Critical Issues Found')), major = numOf(val(/^major issues/i, 'Major Issues Found')), unans = numOf(val(/^unanswered/i, 'Unanswered Items', false));
+    const hr = g.findIndex((r) => (r || []).some((v) => /^compliance/i.test(String(v || '').trim())) && (r || []).some((v) => norm(v) === 'severity'));
+    const ncs = []; let total = 0, ok = 0;
+    if (hr < 0) issues.push(I('error', 'Checklist table (Severity / Compliance columns) not found.'));
+    else {
+      const h = g[hr]; const col = (re) => h.findIndex((v) => re.test(norm(v)));
+      const c = { no: col(/^slno$/), step: col(/^processstep$/), crit: col(/^auditcriteria$/), sev: col(/^severity$/), comp: col(/^compliance/), obs: col(/^observations/), act: col(/^correctiveaction/), tgt: col(/^targetdate/), who: col(/^responsible|^owner/) };
+      ['no', 'step', 'crit', 'sev', 'comp', 'obs', 'act', 'tgt'].forEach((k) => { if (c[k] < 0) issues.push(I('warn', `Checklist: column "${k}" not found.`)); });
+      for (let r = hr + 1; r < g.length; r++) {
+        const x = g[r] || []; const cv = txt(x[c.comp]); const sev = txt(x[c.sev]);
+        if (!/^(minor|major|critical)$/i.test(sev || '')) continue; total++;
+        if (cv === '✓') { ok++; continue; }
+        if (cv !== '✗') continue;
+        const tgtRaw = x[c.tgt]; const tgt = excelDay(tgtRaw) || dm(tgtRaw);
+        ncs.push({ no: txt(x[c.no]), text: txt(x[c.obs]) || txt(x[c.crit]), criteria: txt(x[c.crit]), step: txt(x[c.step]), category: sev, action: String(x[c.act] == null ? '' : x[c.act]).replace(/\r/g, '').trim(), target: tgt, targetNote: String(tgtRaw == null ? '' : tgtRaw).replace(/\r/g, '').split('\n').map((t) => t.trim()).filter((t) => t && !dm(t)).join(' ') || '', owner: c.who >= 0 ? txt(x[c.who]) : '' });
+      }
+    }
+    const prev = []; const ps = wb.SheetNames.find((n, i) => i > 0 && /previous|nc update/i.test(n));
+    if (ps) { const pg = rows(wb, ps); const ph = pg.findIndex((r) => (r || []).some((v) => /^observations/i.test(String(v || '').trim())) && (r || []).some((v) => norm(v) === 'status')); if (ph >= 0) { const pc = pg[ph]; const pi = (re) => pc.findIndex((v) => re.test(norm(v))); const o = pi(/^observations/), a = pi(/^correctiveaction/), st = pi(/^status/); for (let r = ph + 1; r < pg.length; r++) { const x = pg[r] || []; if (!txt(x[o])) continue; prev.push({ text: txt(x[o]), action: String(x[a] == null ? '' : x[a]).replace(/\r/g, '').trim(), status: String(x[st] == null ? '' : x[st]).replace(/\r/g, '').trim() }); } } else issues.push(I('warn', `Sheet "${ps}" was not read: its Observations / Status columns were not found.`)); }
+    const cntOf = (re) => ncs.filter((n) => re.test(n.category)).length;
+    if (major != null && cntOf(/major/i) !== major) issues.push(I('warn', `"Major Issues Found" is ${major} but ${cntOf(/major/i)} major ✗ item(s) were found in the checklist.`));
+    if (crit != null && cntOf(/critical/i) !== crit) issues.push(I('warn', `"Critical Issues Found" is ${crit} but ${cntOf(/critical/i)} critical ✗ item(s) were found in the checklist.`));
+    if (score != null && pass != null) { const exp = score >= pass && !cntOf(/critical/i) && cntOf(/major/i) < 8 ? 'PASS' : 'FAIL'; if (result && !result.toUpperCase().startsWith(exp)) issues.push(I('warn', `Result says ${result} but the figures mean ${exp}.`)); }
+    ncs.forEach((n) => { if (!n.target) issues.push(I('warn', `Item ${n.no}: no valid target date.`)); if (!n.action) issues.push(I('warn', `Item ${n.no}: no corrective action.`)); if (!n.text) issues.push(I('warn', `Item ${n.no}: no observation written.`)); });
+    if (score != null && (score < 0 || score > 1)) issues.push(I('warn', `Score ${score} is outside 0–100%.`));
+    return { issues, start: date, end: date, data: { date, passing: pass, score, result, critical: crit, major, unanswered: unans, items: total, compliant: ok, ncs, prev, format: 'checklist' } };
+  }
+
   function parseAudit(wb, name) {
     const issues = []; const sn = wb.SheetNames.find((n) => rows(wb, n).some((r) => (r || []).some((v) => typeof v === 'string' && /audit overview|factory audit/i.test(v)))) || wb.SheetNames[0]; const g = rows(wb, sn);
+    if (findCell(g, /audit checklist/i) && !findCell(g, /^audit date/i)) return parseChecklist(wb, name, sn, g);
     const val = (re, label, req = true) => { const f = findCell(g, re); if (!f) { if (req) issues.push(I('error', `"${label}" not found.`)); return null; } return nextVal(g, f[0], f[1]); };
     const dateRaw = val(/^audit date/i, 'Audit Date'); const date = parseNamedDate(dateRaw, new Date().getFullYear());
     if (dateRaw != null && !date) issues.push(I('error', `Audit date "${dateRaw}" could not be read.`));

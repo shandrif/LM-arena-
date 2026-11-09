@@ -52,7 +52,7 @@
           const dlg = LM.review(info());
         });
       }
-      const subFor = (t) => ({ trend: 'Complaints', coo: 'Inspections', audit: 'Factory audit', visits: 'Store visits', wifi: 'WiFi' }[t]);
+      const subFor = (t) => ({ trend: 'Complaints', coo: 'Inspections', audit: 'Factory audit', visits: 'Store visits', wifi: 'Uploads' }[t]);
 
       /* ---------- layout ---------- */
       const body = h('div');
@@ -62,7 +62,7 @@
         LM.dropZone(panel, uploadMany, true);
         if (!sets.length) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No Quality reports uploaded yet'), h('p', { class: 'sub' }, 'Recognised reports:'),
           h('div', { style: 'display:inline-grid;gap:4px;text-align:left' }, Object.values(T).map((t) => h('div', {}, h('b', {}, t.label), ' – ', h('span', { class: 'sub' }, t.hint))))));
-        const tabs = ['Complaints', 'Inspections', 'Factory audit', 'Store visits', 'WiFi', 'Uploads'];
+        const tabs = ['Complaints', 'Inspections', 'Factory audit', 'Store visits', 'Uploads'];
         body.replaceChildren(h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Overview: overview, Complaints: complaints, Inspections: inspections, 'Factory audit': audit, 'Store visits': visits, WiFi: wifi, Uploads: uploads }[sub]());
       }
       const none = (t) => h('div', { class: 'banner' }, `No ${T[t].label} uploaded yet (${T[t].hint}).`);
@@ -70,8 +70,8 @@
       /* ---------- Overview ---------- */
       function overview() {
         const series = Q.complaintSeries(sets); const wk = Object.values(series).filter((w) => w.qC != null).sort((a, b) => (a.end < b.end ? -1 : 1)); const last = wk[wk.length - 1], prev = wk[wk.length - 2];
-        const coo = cur('coo'), au = cur('audit'), vi = cur('visits'), wf = cur('wifi');
-        const ref = [last && last.end, coo && coo.end, au && au.end, vi && vi.end, wf && wf.end].filter(Boolean).sort().pop();
+        const coo = cur('coo'), au = cur('audit'), vi = cur('visits');
+        const ref = [last && last.end, coo && coo.end, au && au.end, vi && vi.end].filter(Boolean).sort().pop();
         const stale = (end) => (end && ref && (Date.parse(ref) - Date.parse(end)) / 86400000 > 7 ? h('span', { class: 'down' }, ` · ${Math.round((Date.parse(ref) - Date.parse(end)) / 86400000)} days behind the newest report`) : null);
         const card = (title, sub2, content, jump) => h('div', { class: 'card' }, h('div', { class: 'tools' }, h('b', {}, title), h('div', { class: 'spacer' }), jump ? h('button', { class: 'btn small', onclick: () => { sub = jump; draw(); } }, 'Open') : null), sub2, content);
         const grid = h('div', { class: 'grid half' });
@@ -79,7 +79,6 @@
         if (coo) { const k = coo.data.kpis; const dn = k.done / (k.done + k.pending); grid.append(card('Inspections (weekly update)', h('div', { class: 'sub' }, per(coo), stale(coo.end)), h('div', { class: 'grid kpis', style: 'margin:8px 0 0' }, kpi('Branches visited', num(k.branches), `${k.critical} critical · ${k.major} major · ${k.minor} minor`), kpi('Actions closed', p1(dn), `${num(k.done)} done · ${num(k.pending)} pending`)), 'Inspections')); } else grid.append(card('Inspections', null, none('coo')));
         if (au) { const a = au.data; const open = a.ncs.filter((n) => !n.target || n.target >= today()).length, over = a.ncs.filter((n) => n.target && n.target < today()).length; grid.append(card('Roasting factory audit', h('div', { class: 'sub' }, `Audit ${a.date}`, stale(au.end)), h('div', { class: 'grid kpis', style: 'margin:8px 0 0' }, kpi('Score', p1(a.score), `pass mark ${p1(a.passing)} · ${a.result}`), kpi('Corrective actions', a.ncs.length, `${over} overdue · ${open} not yet due`)), 'Factory audit')); } else grid.append(card('Roasting factory audit', null, none('audit')));
         if (vi) { const tot = (r) => { const L = vi.data.people.filter((p) => p.role.toUpperCase() === r); return { t: LM.sum(L, 'target'), a: LM.sum(L, 'achieved'), v: LM.sum(L, 'visited'), f: LM.sum(L, 'filled') }; }; const R = tot('ROM'), A = tot('AM'); grid.append(card('ROM & AM store visits', h('div', { class: 'sub' }, per(vi), stale(vi.end)), h('div', { class: 'grid kpis', style: 'margin:8px 0 0' }, kpi('ROM visits', p1(R.t ? R.a / R.t : null), `${R.a} of ${R.t}`), kpi('AM visits', p1(A.t ? A.a / A.t : null), `${A.a} of ${A.t}`), kpi('Geo compliance', p1(R.v + A.v ? (R.f + A.f) / (R.v + A.v) : null), `${R.f + A.f} of ${R.v + A.v} filled at location`)), 'Store visits')); } else grid.append(card('ROM & AM store visits', null, none('visits')));
-        if (wf) { const c = {}; wf.data.rows.forEach((r) => (c[r.status] = (c[r.status] || 0) + 1)); grid.append(card('Branch WiFi', h('div', { class: 'sub' }, `As of ${wf.end}`, stale(wf.end)), h('div', { class: 'grid kpis', style: 'margin:8px 0 0' }, Object.entries(c).map(([k, v]) => kpi(k, v, `of ${wf.data.rows.length} branches`)), kpi('With an issue noted', wf.data.rows.filter((r) => r.issue).length, '')), 'WiFi')); } else grid.append(card('Branch WiFi', null, none('wifi')));
         return grid;
       }
 
@@ -125,8 +124,9 @@
         const el = h('div', {}, h('div', { class: 'tools' }, picker('audit'), h('span', { class: 'sub' }, s.fileName)),
           h('div', { class: 'grid kpis' }, kpi('Result', h('span', { class: a.result === 'PASS' ? 'up' : 'down' }, a.result || '–'), `audit ${a.date}`), kpi('Score', p1(a.score), `pass mark ${p1(a.passing)} (${a.score >= a.passing ? '+' : ''}${((a.score - a.passing) * 100).toFixed(1)} pts)`),
             kpi('Critical', a.critical, ''), kpi('Major', a.major, ''), kpi('Unanswered items', a.unanswered == null ? '–' : a.unanswered, '')),
-          h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Non-conformities & corrective actions'), LM.table([{ k: 'no', label: '#' }, { k: 'text', label: 'Non-conformity', l: 1, cls: 'wrap' }, { k: 'category', label: 'Category', l: 1 }, { k: 'action', label: 'Corrective action', l: 1, cls: 'wrap', fmt: (v) => h('span', { style: 'white-space:pre-line' }, v) }, { k: 'target', label: 'Target date', l: 1 },
+          h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Non-conformities & corrective actions'), LM.table([{ k: 'no', label: '#' }, { k: 'text', label: 'Non-conformity', l: 1, cls: 'wrap', fmt: (v, r) => h('span', { style: 'white-space:pre-line' }, v, r.criteria && r.criteria !== v ? h('div', { class: 'sub' }, 'Criteria: ' + r.criteria) : null) }, { k: 'category', label: 'Category', l: 1 }, { k: 'action', label: 'Corrective action', l: 1, cls: 'wrap', fmt: (v) => h('span', { style: 'white-space:pre-line' }, v) }, { k: 'target', label: 'Target date', l: 1, fmt: (v, r) => (v ? h('span', {}, v, r.targetNote ? h('div', { class: 'sub' }, r.targetNote) : null) : '–') },
             { k: 'days', label: 'Status', l: 1, fmt: (v) => (v == null ? '–' : v < 0 ? badge(`Overdue ${-v}d`, 'closed') : badge(v === 0 ? 'Due today' : `Due in ${v}d`)) }, { k: 'owner', label: 'Responsible', l: 1, cls: 'wrap' }], rows, { sort: 'no', dir: 1 })),
+          a.prev && a.prev.length ? h('div', { class: 'card', style: 'margin-bottom:12px' }, h('h3', {}, 'Follow-up on the previous audit'), LM.table([{ k: 'text', label: 'Previous observation', l: 1, cls: 'wrap', fmt: (v) => h('span', { style: 'white-space:pre-line' }, v) }, { k: 'action', label: 'Corrective action required', l: 1, cls: 'wrap', fmt: (v) => h('span', { style: 'white-space:pre-line' }, v) }, { k: 'status', label: 'Status', l: 1, cls: 'wrap', fmt: (v) => h('span', { style: 'white-space:pre-line' }, v) }], a.prev, {})) : null,
           hist.length > 1 ? h('div', { class: 'card' }, h('h3', {}, 'Audit score history'), h('div', { class: 'chart', id: 'c1' })) : null);
         setTimeout(() => { const c = el.querySelector('#c1'); if (c) LM.chart(c, { type: 'line', data: { labels: hist.map((x) => x.data.date), datasets: [{ label: 'Score %', data: hist.map((x) => x.data.score * 100), borderColor: LM.css('--accent'), tension: 0 }, { label: 'Pass mark %', data: hist.map((x) => x.data.passing * 100), borderColor: LM.css('--ly'), borderDash: [5, 4], pointRadius: 0 }] }, options: { plugins: { legend: { position: 'bottom' } } } }); }); return el;
       }
