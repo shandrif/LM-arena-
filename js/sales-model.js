@@ -271,7 +271,7 @@
     .replace(/[\s/(]+$/, '').replace(/\s+[–—-]\s+|\s*[–—]\s*/g, ' – ').replace(/\s+/g, ' ').trim();
   const MUG_FAMILIES = [
     [/^coffee mug/i, 'Coffee Mug'], [/alsail/i, 'Alsail'], [/^summer/i, 'Summer'], [/al-?haram/i, 'Al-Haram'],
-    [/national|fazaa/i, 'National (Fazaa)'], [/^(hot|cold) mug/i, 'Hot & Cold Mug'],
+    [/national|fazaa/i, 'National (Fazaa)'], [/^(hot|cold) mug/i, 'Hot & Cold Mug'], [/^hot\s*(&|and)?\s*c(old|lod)|^hm\s+green\s+mug/i, 'Hot & Cold Mug'],
   ];
   const mugFamily = (name) => { for (const [re, f] of MUG_FAMILIES) if (re.test(name)) return f; return name; };
   function mugs(ds) {

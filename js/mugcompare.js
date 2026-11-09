@@ -11,6 +11,8 @@
     const s = lc(mug); const find = (re) => items.find((i) => re.test(lc(i.name)));
     let m;
     if ((m = /^(hot|cold) mug . (\w+)$/.exec(s))) { const i = find(new RegExp(`^${m[1]} mug ${m[2]}$`)); return i ? { item: i, how: 'auto' } : null; }
+    if ((m = /^stable mug . (light green|black|beige)$/.exec(s))) { const i = find(new RegExp(`^hot & cold mug ${m[1]}$`)); return i ? { item: i, how: 'suggested' } : null; }
+    if ((m = /^al-haram (\w+) mug$/.exec(s))) { const i = find(new RegExp(`^haram mug ${m[1]}$`)); return i ? { item: i, how: 'suggested' } : null; }
     if (/cherry/.test(s)) { const i = find(/cherry/); return i ? { item: i, how: 'auto' } : null; }
     if (/espresso/.test(s)) { const i = find(/^espresso mug/); return i ? { item: i, how: 'auto' } : null; }
     if ((m = /^alsail mug (\w+) (20|40)oz$/.exec(s))) { const c = COL[m[1]]; const i = find(new RegExp(`(^|\\b)${c}\\b.*${m[2]}oz|${m[2]}oz mug ${c}|stanley mug . ${c} ${m[2]}oz`)); return i ? { item: i, how: 'suggested' } : null; }
