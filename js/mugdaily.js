@@ -13,12 +13,17 @@
 
   function parse(wb, fileName, existing, hash) {
     const issues = []; const f = find(wb); if (!f) return { ds: null, issues: [I('error', 'This does not look like the mug “Sales By Product” report.')] };
-    const c = { day: f.n.indexOf('accountingday'), grp: f.n.indexOf('itemgroup'), item: f.n.indexOf('item'), withI: f.n.indexOf('solditem') >= 0 ? f.n.indexOf('solditem') : f.n.indexOf('soldwithitem'), sales: f.n.findIndex((x) => /^netsales/.test(x)), qty: f.n.findIndex((x) => /^numberof.*items?$/.test(x)) };
+    const c = { store: f.n.indexOf('store'), day: f.n.indexOf('accountingday'), grp: f.n.indexOf('itemgroup'), item: f.n.indexOf('item'), withI: f.n.indexOf('solditem') >= 0 ? f.n.indexOf('solditem') : f.n.indexOf('soldwithitem'), sales: f.n.findIndex((x) => /^netsales/.test(x)), qty: f.n.findIndex((x) => /^numberof.*items?$/.test(x)) };
     const pm = /from\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+to\s+(\d{1,2}\/\d{1,2}\/\d{4})/i.exec(f.g.slice(0, f.hi).map((r) => (r || []).join(' ')).join(' ')); const start = pm ? iso(pm[1]) : null, end = pm ? iso(pm[2]) : null; if (!pm) issues.push(I('error', 'The period (“Period: from … to …”) was not found.'));
-    const rows = []; let day = null, item = null; const dayTot = {}; let grand = null;
-    f.g.slice(f.hi + 1).forEach((r) => { if (!r) return; const a = r[c.day]; if (a != null) { const d = iso(a); if (d) day = d; else if (/grand total/i.test(String(a))) { grand = { qty: r[c.qty], sales: r[c.sales] }; return; } else { const m = /^(\d{1,2}\/\d{1,2}\/\d{4}) total/i.exec(String(a)); if (m) dayTot[iso(m[1])] = { qty: r[c.qty], sales: r[c.sales] }; return; } }
+    const rows = []; let day = null, item = null, store = null; const dayTot = {}, storeTot = {}; let grand = null; const T0 = (v) => (v == null ? '' : String(v));
+    f.g.slice(f.hi + 1).forEach((r) => { if (!r) return; const first = c.store >= 0 ? r[c.store] : null; const a = r[c.day];
+      if (/grand total/i.test(T0(first)) || /grand total/i.test(T0(a))) { grand = { qty: r[c.qty], sales: r[c.sales] }; return; }
+      if (first != null && / total$/i.test(T0(first).trim())) { storeTot[clean(first).replace(/ total$/i, '')] = { qty: r[c.qty], sales: r[c.sales] }; return; }
+      if (first != null && clean(first)) { store = clean(first); day = null; item = null; }
+      if (a != null) { const d = iso(a); if (d) day = d; else { const m = /^(\d{1,2}\/\d{1,2}\/\d{4}) total/i.exec(T0(a)); if (m && c.store < 0) dayTot[iso(m[1])] = { qty: r[c.qty], sales: r[c.sales] }; return; } }
       if (r[c.grp] != null && /total/i.test(String(r[c.grp]))) return; if (r[c.item] != null) { item = clean(r[c.item]); } if (r[c.sales] == null && r[c.qty] == null) return; if (item && / total$/i.test(item)) return; if (!day || !item) return;
-      rows.push({ day, item, grp: clean(r[c.grp]) || null, with: c.withI >= 0 && r[c.withI] != null ? clean(r[c.withI]) : '', sales: +r[c.sales] || 0, qty: +r[c.qty] || 0 }); });
+      rows.push({ store: c.store >= 0 ? store : null, day, item, grp: clean(r[c.grp]) || null, with: c.withI >= 0 && r[c.withI] != null ? clean(r[c.withI]) : '', sales: +r[c.sales] || 0, qty: +r[c.qty] || 0 }); });
+    if (c.store >= 0) Object.entries(storeTot).forEach(([st, t]) => { const r = rows.filter((x) => x.store === st); if (r.length && (Math.abs(sum(r, (x) => x.qty) - t.qty) > 0 || Math.abs(sum(r, (x) => x.sales) - t.sales) > 1)) issues.push(I('warn', `${st}: its rows add up to ${n0(sum(r, (x) => x.qty))} pieces / SAR ${n0(sum(r, (x) => x.sales))} but its Total row says ${n0(t.qty)} / ${n0(t.sales)}.`)); });
     if (!rows.length) issues.push(I('error', 'No sales rows were found.'));
     const T = { qty: sum(rows, (x) => x.qty), sales: sum(rows, (x) => x.sales) };
     if (grand && (Math.abs(T.qty - grand.qty) > 0 || Math.abs(T.sales - grand.sales) > 1)) issues.push(I('warn', `The rows add up to ${n0(T.qty)} pieces / SAR ${n0(T.sales)} but the Grand Total says ${n0(grand.qty)} / ${n0(grand.sales)}.`));
@@ -27,16 +32,16 @@
     const pr = rows.filter((x) => kind(x.item) === 'print'); if (pr.length) issues.push(I('info', `“Printed mug” add-on lines (${n0(sum(pr, (x) => x.qty))} prints, SAR ${n0(sum(pr, (x) => x.sales))}) are not counted as mugs.`));
     const fr = rows.filter((x) => kind(x.item) === 'free' || kind(x.item) === 'refill'); if (fr.length) issues.push(I('info', `Free “Repeated” mugs and “Non HM … Refill” drinks (${n0(sum(fr, (x) => x.qty))} pieces) are shown separately and not counted as mugs sold.`));
     (existing || []).forEach((e) => { if (e.hash === hash) issues.push(I('warn', `This exact file was already uploaded on ${e.uploadedAt.slice(0, 10)}.`)); else if (e.start === start && e.end === end) issues.push(I('warn', `A mug sales-by-day report for ${start} → ${end} already exists. Approving replaces it (the old version is kept in history).`)); });
-    return { ds: { type: 'mugdaily', start, end, rows, totals: T }, issues };
+    const stores = new Set(rows.map((x) => x.store).filter(Boolean)); return { ds: { type: 'mugdaily', start, end, rows, totals: T, hasStores: stores.size > 0 }, issues };
   }
 
   /** per canonical mug: pieces per day */
   function compute(rec) {
-    const days = [...new Set(rec.rows.map((x) => x.day))].sort(); const M = new Map(); const extra = { print: { qty: 0, sales: 0 }, free: { qty: 0 }, refill: { qty: 0 } };
+    const days = [...new Set(rec.rows.map((x) => x.day))].sort(); const M = new Map(); const SM = new Map(); const extra = { print: { qty: 0, sales: 0 }, free: { qty: 0 }, refill: { qty: 0 } };
     rec.rows.forEach((x) => { const k = kind(x.item); if (k === 'print' || k === 'free' || k === 'refill') { extra[k].qty += x.qty; extra[k].sales = (extra[k].sales || 0) + x.sales; return; } if (k !== 'mug' || x.with) return;
-      const m = LM.mugstock.mugOf(x.item); const name = m && !m.unknown ? m.name : x.item.split(/[\\/]|[؀-ۿ]/)[0].trim(); const o = M.get(name) || { name, day: {}, qty: 0, sales: 0 }; o.day[x.day] = (o.day[x.day] || 0) + x.qty; o.qty += x.qty; o.sales += x.sales; M.set(name, o); });
+      const m = LM.mugstock.mugOf(x.item); const name = m && !m.unknown ? m.name : x.item.split(/[\\/]|[؀-ۿ]/)[0].trim(); const o = M.get(name) || { name, day: {}, qty: 0, sales: 0 }; o.day[x.day] = (o.day[x.day] || 0) + x.qty; o.qty += x.qty; o.sales += x.sales; M.set(name, o); if (x.store) { const k = x.store + '|' + name; const q = SM.get(k) || { store: x.store, mug: name, qty: 0, sales: 0, day: {} }; q.qty += x.qty; q.sales += x.sales; q.day[x.day] = (q.day[x.day] || 0) + x.qty; SM.set(k, q); } });
     const list = [...M.values()].map((o) => { const last3 = days.slice(-3); const a3 = sum(last3, (d) => o.day[d] || 0) / Math.max(1, last3.length); const aw = o.qty / Math.max(1, days.length); return { ...o, a3, aw, trend: aw ? (a3 / aw - 1) * 100 : null }; }).sort((a, b) => b.qty - a.qty);
-    return { days, list, extra, total: sum(list, (x) => x.qty), totalSales: sum(list, (x) => x.sales) };
+    return { days, list, extra, byStore: [...SM.values()], total: sum(list, (x) => x.qty), totalSales: sum(list, (x) => x.sales) };
   }
 
   function card(rec, V, onDelete) {

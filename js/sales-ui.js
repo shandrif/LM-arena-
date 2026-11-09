@@ -79,7 +79,8 @@
       }
       /* ---------- mug sales by day (Sales By Product export) ---------- */
       let mugDay = null;
-      const loadDay = async () => { mugDay = (await LM.db.all('datasets')).find((d) => d.dept === 'sales' && d.type === 'mugdaily') || null; };
+      let mugLinks = {}; async function linkMug(name, key) { const tp = { ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) }; tp.mugLinks = { ...(tp.mugLinks || {}) }; if (key) tp.mugLinks[LM.norm(name)] = key; else delete tp.mugLinks[LM.norm(name)]; await LM.db.put('templates', tp); mugLinks = tp.mugLinks; draw(); }
+      const loadDay = async () => { mugLinks = ((await LM.db.get('templates', 'sales')) || {}).mugLinks || {}; mugDay = (await LM.db.all('datasets')).find((d) => d.dept === 'sales' && d.type === 'mugdaily') || null; };
       function uploadDaily(rf) {
         const same = mugDay ? [mugDay] : []; const res = LM.mugdaily.parse(rf.wb, rf.name, same, rf.hash); const ds = res.ds; const T = ds ? LM.mugdaily.compute(ds) : null;
         const own = (sets.find((x) => x.id === cur) || null); if (ds && own && own.items) { const fl = {}; const mo = LM.mugstock.mugOf; own.items.forEach((r) => { if (!/mug/i.test(r.item) || /repeated|refill|non\s*hm/i.test(r.item)) return; const m = mo(r.item); const k = m && !m.unknown ? m.name : String(r.item).split(/[\\/]/)[0].trim(); fl[k] = (fl[k] || 0) + (r.qty || 0); }); const diff = T.list.map((x) => ({ n: x.name, a: x.qty, b: fl[x.name] || 0 })).filter((x) => Math.abs(x.a - x.b) > 0); const tf = Object.values(fl).reduce((a, b) => a + b, 0); if (own.start === ds.start && own.end === ds.end) res.issues.push({ level: diff.length ? 'info' : 'info', msg: `Compared with the sales report of the same week: this file has ${T.total.toLocaleString()} mugs, the sales report ${Math.round(tf).toLocaleString()}${diff.length ? '. Differences: ' + diff.slice(0, 5).map((x) => `${x.n} ${x.a} vs ${x.b}`).join('; ') + (diff.length > 5 ? '…' : '') : ' (same for every mug)'}.` }); }
@@ -278,7 +279,7 @@
       }
 
       /* ---------- Mugs: sales of every mug, by family, by store ---------- */
-      function mugs(ds) { return h('div', {}, mugDay && LM.mugdaily ? LM.mugdaily.card(mugDay, ms ? LM.mugstock.view(ms) : null, async () => { if (await LM.ask('Delete the mug sales-by-day report of this week?')) { await LM.db.del('datasets', mugDay.id); reload(); } }) : null, LM.mugsByStore ? LM.mugsByStore.card(ms ? LM.mugstock.view(ms) : null, ds) : null, mugSales(ds), mugStock()); }
+      function mugs(ds) { return h('div', {}, mugDay && LM.mugdaily ? LM.mugdaily.card(mugDay, ms ? LM.mugstock.view(ms) : null, async () => { if (await LM.ask('Delete the mug sales-by-day report of this week?')) { await LM.db.del('datasets', mugDay.id); reload(); } }) : null, LM.mugsByStore ? LM.mugsByStore.card(ms ? LM.mugstock.view(ms) : null, ds, mugDay, mugLinks, linkMug) : null, mugSales(ds), mugStock()); }
       function mugSales(ds) {
         if (!ds.items || !ds.items.length) return h('div', { class: 'banner' }, 'This report has no item data, so mug sales cannot be shown.');
         const m = S.mugs(ds);
