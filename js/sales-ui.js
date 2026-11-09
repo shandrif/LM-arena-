@@ -7,7 +7,7 @@
     id: 'sales', label: 'Sales',
     async mount(panel) {
       const isAgg = (d) => d.type === 'aggregator';
-      let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1));
+      let sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && !d.type && Array.isArray(d.ty)).sort((a, b) => (a.start < b.start ? 1 : -1));
       let aggs = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales' && isAgg(d)).sort((a, b) => (a.end < b.end ? 1 : -1)); let curAgg = aggs[0] ? aggs[0].id : null;
       let cur = sets[0] ? sets[0].id : null; let sub = sets[0] || !aggs[0] ? 'Days' : 'Sales by aggregators';
       const template = async () => ({ ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) });
@@ -19,7 +19,7 @@
         msWeek = (await LM.db.all('datasets')).find((d) => d.dept === 'mugstock') || null; const sel = (LM.week && LM.week.selected) || '9999';
         ms = msWeek || null; void all; void sel; msPrev = ms ? all.find((d) => d.id !== ms.id && wkOf(d) < wkOf(ms)) || null : null; };
       const loadHc = async () => { await loadMs(); allSales = (await (LM.dbRaw || LM.db).all('datasets')).filter((d) => d && d.dept === 'sales'); hc = (await LM.db.all('datasets')).filter((d) => d.dept === 'headcount').sort((a, b) => (a.end < b.end ? 1 : a.end > b.end ? -1 : (a.uploadedAt < b.uploadedAt ? 1 : -1)))[0] || null; };
-      const reload = async () => { const allS = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales'); sets = allS.filter((d) => !isAgg(d)).sort((a, b) => (a.start < b.start ? 1 : -1)); aggs = allS.filter(isAgg).sort((a, b) => (a.end < b.end ? 1 : -1)); if (!aggs.find((x) => x.id === curAgg)) curAgg = aggs[0] ? aggs[0].id : null; await loadDay(); await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
+      const reload = async () => { const allS = (await LM.db.all('datasets')).filter((d) => d.dept === 'sales'); sets = allS.filter((d) => !d.type && Array.isArray(d.ty)).sort((a, b) => (a.start < b.start ? 1 : -1)); aggs = allS.filter(isAgg).sort((a, b) => (a.end < b.end ? 1 : -1)); if (!aggs.find((x) => x.id === curAgg)) curAgg = aggs[0] ? aggs[0].id : null; await loadDay(); await loadHc(); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       /* ---------- upload ---------- */
       async function upload(file) {
