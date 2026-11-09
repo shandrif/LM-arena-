@@ -92,14 +92,15 @@
     mugs.sort((a, b) => FAMILY_ORDER.indexOf(a.family) - FAMILY_ORDER.indexOf(b.family) || a.name.localeCompare(b.name));
     const families = FAMILY_ORDER.filter((f) => mugs.some((m) => m.family === f));
     const stores = []; const S = {};
-    d.roms.forEach((r) => r.stores.forEach((s) => { const k = r.name + '|' + s; S[k] = { key: k, rom: r.name, name: s, mug: {}, fam: {}, total: 0, reported: false }; stores.push(S[k]); }));
+    const skipped = []; // stores the user chose not to count (the same branch listed twice in the tracker)
+    d.roms.forEach((r) => r.stores.forEach((s) => { if (SKIP.has(LM.norm(s))) { skipped.push(s); return; } const k = r.name + '|' + s; S[k] = { key: k, rom: r.name, name: s, mug: {}, fam: {}, total: 0, reported: false }; stores.push(S[k]); }));
     const byMugRom = {}; const romTot = {};
     d.rows.forEach((x) => { const st = S[x.rom + '|' + x.store]; if (!st) return; if (x.qty == null) { if (!(x.mug in st.mug)) st.mug[x.mug] = null; return; }
       st.reported = true; st.mug[x.mug] = (st.mug[x.mug] || 0) + x.qty; st.fam[x.family] = (st.fam[x.family] || 0) + x.qty; st.total += x.qty;
       const k = x.mug; byMugRom[k] = byMugRom[k] || {}; byMugRom[k][x.rom] = (byMugRom[k][x.rom] || 0) + x.qty; romTot[x.rom] = (romTot[x.rom] || 0) + x.qty; });
     const total = stores.reduce((t, s) => t + s.total, 0);
     const zeros = []; stores.forEach((s) => mugs.forEach((m) => { if (s.mug[m.name] === 0) zeros.push({ store: s.name, rom: s.rom, mug: m.name }); }));
-    return { roms: d.roms.map((r) => r.name), mugs, families, stores, byMugRom, romTot, total, zeros, remarks: d.remarks || [] };
+    return { roms: d.roms.map((r) => r.name), mugs, families, stores, byMugRom, romTot, total, zeros, remarks: d.remarks || [], skipped };
   }
 
   /** whole upload flow: read, review, save (one stock file per week; the one it replaces is kept in history) */
@@ -120,5 +121,6 @@
         await LM.db.put('datasets', rec); LM.toast('Mug stock saved'); if (ctx.done) await ctx.done(); setTimeout(resolve, 50); } }); });
   }
 
-  LM.mugstock = { upload, parse, view, mugOf, FAMILY_ORDER };
+  let SKIP = new Set(); const setSkip = (list) => { SKIP = new Set((list || []).map((x) => LM.norm(x))); };
+  LM.mugstock = { upload, parse, view, mugOf, FAMILY_ORDER, setSkip };
 })();

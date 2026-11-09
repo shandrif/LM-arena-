@@ -12,7 +12,7 @@
     return best && !tie ? best : null;
   }
   /** V = LM.mugstock.view(record); ds = a sales report (or null) */
-  function card(V, ds, day, links, onLink) {
+  function card(V, ds, day, links, onLink, onSkip) {
     const bk = LM.sales.branchKey; const sold = new Map(); let branches = [];
     const dayOn = !!(day && day.hasStores); // the mugs-sold-by-store export is the exact source when it has been uploaded for the week
     if (dayOn) { const seen = new Map(); LM.mugdaily.compute(day).byStore.forEach((r) => { const k = bk(r.store) + '|' + r.mug; const o = sold.get(k) || { qty: 0, value: 0 }; o.qty += r.qty; o.value += r.sales; sold.set(k, o); seen.set(bk(r.store), r.store); }); branches = [...seen.entries()].map(([key, name]) => ({ key, name })); }
@@ -41,11 +41,12 @@
       const noStock = [...allBr.entries()].filter(([k]) => k && !stockCodes.has(k)).map(([k, n]) => { const sd = [...sold.entries()].filter(([kk]) => kk.startsWith(k + '|')).reduce((a, [, v]) => a + v.qty, 0); return { k, n, qty: sd }; }).sort((a, b) => b.qty - a.qty); const noSales = V.stores.filter((s) => bkey(s.name) && !allBr.has(bkey(s.name))).map((s) => s.name); const dupC = {}; V.stores.forEach((s) => { const c = bkey(s.name); if (c) (dupC[c] = dupC[c] || []).push(s.name); }); const dups = Object.entries(dupC).filter(([, a]) => a.length > 1);
       const noCodeSt = V.stores.filter((s) => !bkey(s.name)).map((s) => s.name);
       const ok = !noStock.length && !noSales.length && !dups.length && !noCodeSt.length;
-      check = h('div', { class: 'banner', style: `margin:10px 0;${ok ? '' : 'background:var(--warn-bg);color:var(--ink)'}` }, h('b', {}, ok ? '✓ Branch check: every branch of the sales data has a stock store and every stock store a branch.' : 'Branch check (by branch code)'), ok ? null : h('ul', { style: 'margin:6px 0 0 18px' },
+      const skippedBox = V.skipped && V.skipped.length ? h('div', { class: 'banner', style: 'margin:10px 0' }, h('b', {}, 'Not counted (same branch listed twice): '), V.skipped.join('; '), ' ', onSkip && !LM.viewOnly ? h('button', { class: 'btn small', onclick: async () => { if (await LM.ask('Count the skipped stores again?')) onSkip([]); } }, 'Undo') : null) : null;
+      check = h('div', {}, skippedBox, h('div', { class: 'banner', style: `margin:10px 0;${ok ? '' : 'background:var(--warn-bg);color:var(--ink)'}` }, h('b', {}, ok ? '✓ Branch check: every branch of the sales data has a stock store and every stock store a branch.' : 'Branch check (by branch code)'), ok ? null : h('ul', { style: 'margin:6px 0 0 18px' },
         noStock.length ? h('li', {}, h('b', {}, `${noStock.length} branches in the sales data have no store in the SOH tracker: `), noStock.map((x) => `${x.n.replace(/\s+/g, ' ')}${dayOn ? ` (${n0(x.qty)} mugs sold)` : ''}`).join('; ')) : null,
         noSales.length ? h('li', {}, h('b', {}, `${noSales.length} stores of the SOH tracker have a code that is not in the sales data: `), noSales.join('; '), '. Check the code.') : null,
-        dups.length ? h('li', {}, h('b', {}, 'Same code on two stock stores: '), dups.map(([c, a]) => `${c} → ${a.join(' + ')}`).join('; '), '. If it is one store, delete the extra column (its stock is counted twice).') : null,
-        noCodeSt.length ? h('li', {}, h('b', {}, `${noCodeSt.length} stock stores have no branch code: `), noCodeSt.join('; ')) : null)); }
+        dups.length ? h('li', {}, h('b', {}, 'Same branch code on two stock stores: '), dups.map(([c, a]) => `${c} → ${a.join(' + ')}`).join('; '), '. If it is one store, choose the one to count; the other is skipped (its stock is not counted):', ...dups.map(([c, a]) => { const grp = h('div', { style: 'margin:6px 0' }, h('b', {}, c + ': '), ...a.flatMap((nm) => [h('label', { style: 'margin-right:12px' }, h('input', { type: 'radio', name: 'dup-' + c, onchange: () => { (LM._mugSkipPick = LM._mugSkipPick || {})[c] = { keep: nm, others: a.filter((x) => x !== nm) }; } }), ' count only ', h('b', {}, nm))])); return grp; }), onSkip && !LM.viewOnly ? h('div', {}, h('button', { class: 'btn primary small', onclick: async () => { const pick = Object.values(LM._mugSkipPick || {}); if (!pick.length) return LM.say('Choose the store to count first.'); const add = pick.flatMap((x) => x.others); if (!(await LM.ask(`Count only ${pick.map((x) => x.keep).join(', ')} and skip ${add.join(', ')}?\n\nThe skipped store is left out of every mug stock figure. You can undo this.`))) return; LM._mugSkipPick = {}; onSkip([...(V.skipped || []), ...add]); } }, 'Confirm')) : null) : null,
+        noCodeSt.length ? h('li', {}, h('b', {}, `${noCodeSt.length} stock stores have no branch code: `), noCodeSt.join('; ')) : null))); }
     let unmatched = null;
     if ((unm.length || (links && Object.keys(links).length)) && onLink && !LM.viewOnly) {
       const gc = {}; guesses.forEach((b) => { if (b) gc[b.key] = (gc[b.key] || 0) + 1; }); // a guess that two stock stores share is not offered

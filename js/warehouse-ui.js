@@ -19,7 +19,7 @@
     async mount(panel) {
       let sets = [], cur = null, sub = 'Scorecard', mugSec = 'All', mugQ = '', invQ = '';
       let storeStock = null, mugLinks = {};
-      const reload = async () => { const all = await LM.db.all('datasets'); storeStock = all.find((d) => d.dept === 'mugstock') || null; mugLinks = ((await LM.db.get('templates', 'warehouse')) || {}).mugLinks || {}; sets = all.filter((d) => d.dept === 'warehouse').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
+      const reload = async () => { const all = await LM.db.all('datasets'); storeStock = all.find((d) => d.dept === 'mugstock') || null; mugLinks = ((await LM.db.get('templates', 'warehouse')) || {}).mugLinks || {}; try { LM.mugstock.setSkip((((await LM.db.get('templates', 'sales')) || {}).mugSkip) || []); } catch (e) { /* no skip list */ } sets = all.filter((d) => d.dept === 'warehouse').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
         let rf; try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
