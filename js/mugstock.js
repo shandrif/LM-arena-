@@ -75,6 +75,11 @@
       totalSheet.slice(1).forEach((r) => { if (!r || !r[0]) return; const m = mugOf(r[0]); if (!m || m.unknown) return; const v = cellVal(r[1]); if (typeof v !== 'number') return; if (Math.abs(v - (mine[m.name] || 0)) > 0.0001) off.push(`${clean(r[0])}: Total sheet ${v.toLocaleString()}, ROM sheets ${(mine[m.name] || 0).toLocaleString()}`); });
       if (off.length) add('info', `The workbook’s “Total” sheet does not match the ROM sheets for ${off.length} mug(s). It adds the sheets row by row, but the ROM sheets list the mugs in different orders, so the wrong mugs get added together. The dashboard adds them by name instead. ${off.slice(0, 8).join('; ')}${off.length > 8 ? '; …' : ''}.`);
     }
+    { // store codes: every store should start with its Bxx code (the code the sales report uses); one code = one store
+      const codeOf = (n) => { const m = /^\s*B\s*0*(\d+)/i.exec(n); return m ? 'B' + m[1] : null; }; const all = []; roms.forEach((r) => r.stores.forEach((st) => all.push({ rom: r.name, store: st, code: codeOf(st) })));
+      const noCode = all.filter((x) => !x.code); if (noCode.length) add('warn', `${noCode.length} store(s) have no branch code (Bxx) in front of the name: ${noCode.slice(0, 6).map((x) => x.store).join(', ')}${noCode.length > 6 ? '…' : ''}. They can only be matched to the sales by name.`);
+      const by = {}; all.filter((x) => x.code).forEach((x) => { (by[x.code] = by[x.code] || []).push(x); });
+      Object.entries(by).filter(([, a]) => a.length > 1).forEach(([c, a]) => add('warn', `Branch code ${c} is used by ${a.length} stores: ${a.map((x) => `“${x.store}” (${x.rom})`).join(' and ')}. If it is one store, delete the extra column: its stock is otherwise counted twice.`)); }
     if (ignoredSheets.length) add('info', `Sheet(s) not read (no store layout): ${ignoredSheets.join(', ')}.`);
     add('info', 'Only the mug rows are read. Coffee items (cups, beans, coffee cards, B2C bags, filter bags, instant coffee) are not stored.');
     return { roms, rows, remarks, issues };
