@@ -26,7 +26,7 @@
         let rf;
         try { rf = await LM.readFile(file); } catch (e) { return LM.say(e.message); }
         if (LM.aggregator.detect(rf.wb)) return uploadAgg(rf);
-        if (LM.mugdaily && LM.mugdaily.detect(rf.wb)) return uploadDaily(rf);
+        if (LM.mugdaily && LM.mugdaily.detect(rf.wb)) return LM.say('This is the mugs-sold report. Upload it in Sales → Mugs (button “Upload mugs sales file”).');
         const tpl = await template();
         const ov = { sheets: {}, cols: {}, groupAliases: {} };
         const run = () => {
@@ -78,10 +78,11 @@
         LM.review(info());
       }
       /* ---------- mug sales by day (Sales By Product export) ---------- */
+      const mugsT = LM.mugsTab.create({ draw: () => draw() });
       let mugDay = null;
       async function skipMug(list) { const tp = { ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) }; tp.mugSkip = list; await LM.db.put('templates', tp); LM.mugstock.setSkip(list); draw(); }
       let mugLinks = {}; async function linkMug(name, key, quiet) { if (name == null) { draw(); return; } const tp = { ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) }; tp.mugLinks = { ...(tp.mugLinks || {}) }; if (key) tp.mugLinks[LM.norm(name)] = key; else delete tp.mugLinks[LM.norm(name)]; await LM.db.put('templates', tp); mugLinks = tp.mugLinks; if (!quiet) draw(); }
-      const loadDay = async () => { { const tp0 = (await LM.db.get('templates', 'sales')) || {}; mugLinks = tp0.mugLinks || {}; LM.mugstock.setSkip(tp0.mugSkip || []); } mugDay = (await LM.db.all('datasets')).find((d) => d.dept === 'sales' && d.type === 'mugdaily') || null; };
+      const loadDay = async () => { await mugsT.load(); { const tp0 = (await LM.db.get('templates', 'sales')) || {}; mugLinks = tp0.mugLinks || {}; LM.mugstock.setSkip(tp0.mugSkip || []); } mugDay = (await LM.db.all('datasets')).find((d) => d.dept === 'sales' && d.type === 'mugdaily') || null; };
       function uploadDaily(rf) {
         const same = mugDay ? [mugDay] : []; const res = LM.mugdaily.parse(rf.wb, rf.name, same, rf.hash); const ds = res.ds; const T = ds ? LM.mugdaily.compute(ds) : null;
         const own = (sets.find((x) => x.id === cur) || null); if (ds && own && own.items) { const fl = {}; const mo = LM.mugstock.mugOf; own.items.forEach((r) => { if (!/mug/i.test(r.item) || /repeated|refill|non\s*hm/i.test(r.item)) return; const m = mo(r.item); const k = m && !m.unknown ? m.name : String(r.item).split(/[\\/]/)[0].trim(); fl[k] = (fl[k] || 0) + (r.qty || 0); }); const diff = T.list.map((x) => ({ n: x.name, a: x.qty, b: fl[x.name] || 0 })).filter((x) => Math.abs(x.a - x.b) > 0); const tf = Object.values(fl).reduce((a, b) => a + b, 0); if (own.start === ds.start && own.end === ds.end) res.issues.push({ level: diff.length ? 'info' : 'info', msg: `Compared with the sales report of the same week: this file has ${T.total.toLocaleString()} mugs, the sales report ${Math.round(tf).toLocaleString()}${diff.length ? '. Differences: ' + diff.slice(0, 5).map((x) => `${x.n} ${x.a} vs ${x.b}`).join('; ') + (diff.length > 5 ? '…' : '') : ' (same for every mug)'}.` }); }
@@ -107,8 +108,8 @@
           h('div', { class: 'head' }, h('h2', {}, 'Sales'), periodSel, h('div', { class: 'spacer' }), picker), body);
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
-        if (!ds && aggs.length) { const st0 = h('div', { class: 'subtabs' }, h('button', { class: 'on' }, 'Sales by aggregators')); return body.replaceChildren(st0, aggView()); }
-        if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No sales report uploaded yet'),
+        if (!ds) { const avail = ['Sales report', 'Mugs', ...(aggs.length ? ['Sales by aggregators'] : [])]; if (!avail.includes(sub)) sub = aggs.length && sub === 'Sales by aggregators' ? sub : 'Sales report'; if (sub !== 'Sales report') { const stb = h('div', { class: 'subtabs' }, avail.map((x) => h('button', { class: x === sub ? 'on' : '', onclick: () => { sub = x; draw(); } }, x))); return body.replaceChildren(stb, sub === 'Mugs' ? mugs() : aggView()); } }
+        if (!ds) return body.replaceChildren(h('div', { class: 'subtabs' }, ['Sales report', 'Mugs', ...(aggs.length ? ['Sales by aggregators'] : [])].map((x) => h('button', { class: x === sub ? 'on' : '', onclick: () => { sub = x; draw(); } }, x))), h('div', { class: 'empty' }, h('h3', {}, 'No sales report uploaded yet'),
           h('p', { class: 'sub' }, 'Drop the Sales Performance Report (.xlsx) here, or use the Upload button.'),
           h('p', { class: 'sub' }, 'Expected sheets: Data TY (Day, Store, Net sales, Bills), Data LY (same, last year), Data Items (Store, Order type, Item group, Item, Qty, Net sales).')));
         const c = S.compute(ds);
@@ -280,7 +281,7 @@
       }
 
       /* ---------- Mugs: sales of every mug, by family, by store ---------- */
-      function mugs(ds) { return h('div', {}, mugDay && LM.mugdaily ? LM.mugdaily.card(mugDay, ms ? LM.mugstock.view(ms) : null, async () => { if (await LM.ask('Delete the mug sales-by-day report of this week?')) { await LM.db.del('datasets', mugDay.id); reload(); } }) : null, LM.mugsByStore ? LM.mugsByStore.card(ms ? LM.mugstock.view(ms) : null, ds, mugDay, mugLinks, linkMug, skipMug) : null, mugSales(ds), mugStock()); }
+      function mugs() { return mugsT.view(); } // the Mugs tab is built only from its own two uploads
       function mugSales(ds) {
         if (!ds.items || !ds.items.length) return h('div', { class: 'banner' }, 'This report has no item data, so mug sales cannot be shown.');
         const m = S.mugs(ds);
