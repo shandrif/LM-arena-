@@ -25,7 +25,7 @@
     if (/\bharam\b/.test(s)) return colour ? out(`Al-Haram ${C} Mug`, 'Al-Haram') : { unknown: true };
     if (/\bfaz+a+\b/.test(s)) return hc ? out(`Fazaa ${hc} Mug`, 'National (Fazaa)') : { unknown: true };
     if (/\bcherry\b/.test(s) || /^red mugs?$/.test(s)) return out('Coffee Mug – Cherry', 'Coffee Mug');
-    if (/\bespresso mugs?\b/.test(s)) return out('Coffee Mug – Espresso', 'Coffee Mug');
+    if (/\bespresso\b/.test(s) && /\bmugs?\b/.test(s)) return out('Coffee Mug – Espresso', 'Coffee Mug');
     if (/^(hot|cold)\b/.test(s) && !/\bcups?\b/.test(s)) return colour ? out(`${hc} Mug – ${C}`, 'Hot & Cold Mug') : { unknown: true };
     if (/\bm[uy]gs?\b|\bsail\b|summer|haram|faz|cherry/.test(s)) return { unknown: true }; // says “mug” but is none of the known mugs: reported in the review, not guessed
     return null;
