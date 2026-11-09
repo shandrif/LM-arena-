@@ -79,7 +79,7 @@
       }
       /* ---------- mug sales by day (Sales By Product export) ---------- */
       let mugDay = null;
-      let mugLinks = {}; async function linkMug(name, key) { const tp = { ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) }; tp.mugLinks = { ...(tp.mugLinks || {}) }; if (key) tp.mugLinks[LM.norm(name)] = key; else delete tp.mugLinks[LM.norm(name)]; await LM.db.put('templates', tp); mugLinks = tp.mugLinks; draw(); }
+      let mugLinks = {}; async function linkMug(name, key, quiet) { if (name == null) { draw(); return; } const tp = { ...S.defaultTemplate(), ...((await LM.db.get('templates', 'sales')) || {}) }; tp.mugLinks = { ...(tp.mugLinks || {}) }; if (key) tp.mugLinks[LM.norm(name)] = key; else delete tp.mugLinks[LM.norm(name)]; await LM.db.put('templates', tp); mugLinks = tp.mugLinks; if (!quiet) draw(); }
       const loadDay = async () => { mugLinks = ((await LM.db.get('templates', 'sales')) || {}).mugLinks || {}; mugDay = (await LM.db.all('datasets')).find((d) => d.dept === 'sales' && d.type === 'mugdaily') || null; };
       function uploadDaily(rf) {
         const same = mugDay ? [mugDay] : []; const res = LM.mugdaily.parse(rf.wb, rf.name, same, rf.hash); const ds = res.ds; const T = ds ? LM.mugdaily.compute(ds) : null;
