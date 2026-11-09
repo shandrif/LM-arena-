@@ -8,7 +8,7 @@
   function match(name, branches) {
     const k = bkey(name); if (k) { const b = branches.find((x) => x.key === k); return b || null; }
     const a = toks(name); if (!a.length) return null; let best = null, tie = false;
-    branches.forEach((b) => { const t = toks(b.name); const hits = a.filter((x) => t.some((y) => (x.length === 3 || y.length === 3 ? x === y : LM.similarity(x, y) >= 0.8))).length; if (hits && hits === a.length) { if (!best) best = b; else tie = true; } });
+    branches.forEach((b) => { const t = toks(b.name); const dal = (w) => w.replace(/^(al|el)(?=.{3,})/, ''); const same = (x, y) => { x = dal(x); y = dal(y); if (x === y) return true; if (x.length <= 3 || y.length <= 3) return false; const [sh, lo] = x.length <= y.length ? [x, y] : [y, x]; return (sh.length >= 4 && lo.includes(sh)) || LM.similarity(x, y) >= 0.8; }; const hits = a.filter((x) => t.some((y) => same(x, y))).length; if (hits && hits === a.length) { if (!best) best = b; else tie = true; } });
     return best && !tie ? best : null;
   }
   /** V = LM.mugstock.view(record); ds = a sales report (or null) */
@@ -35,5 +35,5 @@
       h('div', { class: 'tscroll', style: 'max-height:560px;overflow:auto;margin-top:8px' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, h('th', { class: 'l', rowspan: 2 }, 'Store'), h('th', { class: 'l', rowspan: 2 }, 'Mugs'), h('th', { colspan: 2, style: 'text-align:center;border-bottom:1px solid var(--line)' }, 'Sales'), h('th', { rowspan: 2 }, 'Stock')), h('tr', {}, h('th', {}, 'Qty'), h('th', {}, 'Value (SAR)'))), body)), more,
       unmatched, h('div', { class: 'sub', style: 'margin-top:6px' }, dayOn ? `Sales = the “mugs sold” report ${day.start} → ${day.end} (exact, per store). “–” = the stock store could not be matched with certainty to a store of that report (or has no stock figure).` : !ds ? 'Open a sales report to fill the Sales columns.' : ds ? `Sales = the sales report ${ds.start} → ${ds.end} for that mug in that store. “–” = the stock store could not be matched with certainty to a sales branch (or has no stock figure).` : 'Open a sales report to fill the Sales columns.'));
   }
-  LM.mugsByStore = { card };
+  LM.mugsByStore = { card, match };
 })();
