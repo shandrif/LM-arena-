@@ -145,7 +145,18 @@
       const T = items(ks, 'text'); const heads = T.filter((t) => /^(iraq|london)$/i.test(t.text.trim())).sort((a, b) => a.x - b.x); const me = heads.find((h) => h.text.trim().toLowerCase() === market.toLowerCase());
       if (me) { const nx = heads.find((h) => h.x > me.x); const body = T.filter((t) => t.y > me.y && t.text.includes('\n') && t.x >= me.x - 0.05 && (!nx || t.x < nx.x - 0.05)).sort((a, b) => a.y - b.y)[0];
         if (body) { const L = body.text.split('\n').map((x) => x.trim()).filter(Boolean); L.forEach((x, i) => D.callouts.push({ slide: ks.n, kind: i === L.length - 1 && L.length > 1 ? 'AREA TO FOCUS' : 'WHAT HAPPENED', title: x, text: '' })); } else issues.push(I('warn', `${market}: the takeaways could not be read from slide ${ks.n}.`)); }
-    } else issues.push(I('info', `${market}: no “Key takeaways” slide was found.`));
+    }
+    // newer deck (1–14 Nov): explanation boxes beside the charts, an “Areas to improve” slide per market, a cross-market “business insights” slide
+    const boxes = (sl, filt) => items(sl, 'text').filter((t) => t.text !== sl.title && t.text.includes('\n') && t.y > 0.15 && (!filt || filt(t))).map((t) => { const L = t.text.split('\n').map((x) => x.replace(/\s+/g, ' ').trim()).filter(Boolean); return { t, head: L[0], body: L.slice(1).join(' ') }; });
+    const NOTBOX = /^(what guests|what could|week\s*\d+\s*:|net sales|transactions|average per cheque|[\d,.]+\s*$|out of 5)/i; let newer = 0;
+    detail.filter((sl) => !/google|reviews/i.test(sl.title || '') && !(iraq && st && items(sl, 'table').includes(st))).forEach((sl) => boxes(sl, (t) => !NOTBOX.test(t.text.trim()) && !/google reviews/i.test(t.text)).sort((a, b) => a.t.y - b.t.y || a.t.x - b.t.x).forEach((b) => { newer++; D.callouts.push({ slide: sl.n, kind: 'WHAT HAPPENED', title: b.head, text: b.body }); }));
+    const imp = slides.find((sl) => /areas?\s+to\s+improve/i.test(sl.title || ''));
+    if (imp) { const T = items(imp, 'text'); const heads = T.filter((t) => /^(iraq|london)$/i.test(t.text.trim())).sort((a, b) => a.x - b.x); const me = heads.find((h) => h.text.trim().toLowerCase() === market.toLowerCase());
+      if (me) { const nx = heads.find((h) => h.x > me.x); boxes(imp, (t) => t.y > me.y && t.x >= me.x - 0.05 && (!nx || t.x < nx.x - 0.05)).sort((a, b) => a.t.y - b.t.y).forEach((b) => { newer++; D.callouts.push({ slide: imp.n, kind: 'AREA TO IMPROVE', title: b.head, text: b.body }); }); } }
+    const ins = slides.find((sl) => /business insights|insights?$/i.test(sl.title || '') && !/google/i.test(sl.title || ''));
+    if (ins) boxes(ins).sort((a, b) => a.t.y - b.t.y || a.t.x - b.t.x).forEach((b) => { const all = b.head + ' ' + b.body; const isI = /iraq|baghdad|erbil|pop-?up|sar\b/i.test(all), isL = /london|£/i.test(all); if ((iraq && (isI || !isL)) || (!iraq && (isL || !isI))) { newer++; D.callouts.push({ slide: ins.n, kind: 'INSIGHT', title: b.head, text: b.body }); } });
+    const sum0 = slides.find((sl, i) => i > 0 && i < 3 && !marketOfSlide(sl) && /london|iraq/i.test(sl.title || '') && /[+\-−–]\s*\d/.test(sl.title || '')); if (sum0) D.callouts.unshift({ slide: sum0.n, kind: 'WHAT HAPPENED', title: sum0.title.replace(/\s+/g, ' ').trim(), text: '' });
+    if (!ks && !newer) issues.push(I('info', `${market}: no “Key takeaways” slide was found.`));
     // Google reviews
     mine.filter((s) => /google|reviews/i.test(s.title || '')).forEach((s) => D.info.push(...reviewInfo(s)));
     // ---------- checks ----------
@@ -187,7 +198,7 @@
 
   function detectExcel(wb) {
     for (const name of wb.SheetNames) { const rows = rowsOfSheet(wb, name);
-      let hi = findHdr(rows, (n) => n.some((x) => /^accountingday/.test(x)) && n.some((x) => /^transactions/.test(x)) && n.some((x) => /^netsales/.test(x)));
+      let hi = findHdr(rows, (n) => n.some((x) => /^accountingday/.test(x)) && n.some((x) => /^(transactions|bills)$/.test(x)) && n.some((x) => /^netsales/.test(x)) && !n.some((x) => /iqd/.test(x)));
       if (hi >= 0) return { market: 'London', sheet: name, rows, hi };
       hi = findHdr(rows, (n) => /^store/.test(n[0] || '') && n.some((x) => /^accountingday/.test(x)) && n.some((x) => /^netsales.*iqd/.test(x)));
       if (hi >= 0) return { market: 'Iraq', sheet: name, rows, hi }; }
@@ -252,7 +263,7 @@
   const periodCheck = (rows, W, issues) => { const t = rows.slice(0, 6).map((r) => (r || []).join(' ')).join(' ').match(/from\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+to\s+(\d{1,2}\/\d{1,2}\/\d{4})/i); if (t) { const a = toISO(t[1]), b = toISO(t[2]); if (b && b !== W.cur.end) issues.push(I('warn', `The workbook header says the period ends ${b}, but the last day with sales is ${W.cur.end}.`)); } };
 
   function parseLondonExcel(wb, det, fileName, issues) {
-    const H = nrow(det.rows[det.hi]); const c = { day: colIdx(H, /^accountingday/), net: colIdx(H, /^netsales/), tr: colIdx(H, /^transactions/), gross: colIdx(H, /grosssalesafterdiscount/), vat: colIdx(H, /^vat/) };
+    const H = nrow(det.rows[det.hi]); const c = { day: colIdx(H, /^accountingday/), net: colIdx(H, /^netsales/), tr: colIdx(H, /^transactions/) >= 0 ? colIdx(H, /^transactions/) : colIdx(H, /^bills$/), gross: colIdx(H, /grosssalesafterdiscount/), vat: colIdx(H, /^vat.*amount/) >= 0 ? colIdx(H, /^vat.*amount/) : colIdx(H, /^vat$/) };
     const days = []; let grand = null;
     det.rows.slice(det.hi + 1).forEach((r) => { if (!r) return; if (/grand\s*total/i.test(String(r[0] || ''))) { grand = { net: num(r[c.net]), tr: num(r[c.tr]), gross: c.gross >= 0 ? num(r[c.gross]) : null }; return; } const d = toISO(r[c.day]); if (d && num(r[c.net]) != null) days.push({ date: d, net: num(r[c.net]), tr: num(r[c.tr]) || 0, gross: c.gross >= 0 ? num(r[c.gross]) || 0 : 0, vat: c.vat >= 0 ? num(r[c.vat]) || 0 : 0 }); });
     const W = weeksOf(days.map((d) => d.date), issues); if (!W) return null; periodCheck(det.rows, W, issues);
@@ -300,19 +311,21 @@
   }
 
   function parseIraqExcel(wb, det, fileName, issues) {
-    const H = nrow(det.rows[det.hi]); const c = { store: 0, day: colIdx(H, /^accountingday/), net: colIdx(H, /^netsales.*iqd/), bills: colIdx(H, /^bills/) };
+    const H = nrow(det.rows[det.hi]); const c = { store: 0, day: colIdx(H, /^accountingday/), net: colIdx(H, /^netsales.*iqd/), sar: colIdx(H, /^netsales.*sar$/), bills: colIdx(H, /^bills/) };
     const rowsD = []; let store = null; let grand = null;
-    det.rows.slice(det.hi + 1).forEach((r) => { if (!r) return; const a = r[0] == null ? '' : String(r[0]).trim(); if (/grand\s*total/i.test(a)) { grand = { iqd: num(r[c.net]), bills: num(r[c.bills]) }; return; } if (a && /total$/i.test(a)) return; if (a) store = a; const d = toISO(r[c.day]); if (d && store && num(r[c.net]) != null) rowsD.push({ store, date: d, iqd: num(r[c.net]), bills: num(r[c.bills]) || 0 }); });
+    det.rows.slice(det.hi + 1).forEach((r) => { if (!r) return; const a = r[0] == null ? '' : String(r[0]).trim(); if (/grand\s*total/i.test(a)) { grand = { iqd: num(r[c.net]), bills: num(r[c.bills]) }; return; } if (a && /total$/i.test(a)) return; if (a) store = a; const d = toISO(r[c.day]); if (d && store && num(r[c.net]) != null) rowsD.push({ store, date: d, iqd: num(r[c.net]), sar: c.sar >= 0 ? num(r[c.sar]) : null, bills: num(r[c.bills]) || 0 }); });
     // IQD -> SAR: use the SAR column of the item sheet when there is one
-    const it = sheetBy(wb, (n) => n.some((x) => /^item$/.test(x)) && n.some((x) => /^sar$/.test(x)) && n.some((x) => /^accountingday/.test(x)));
+    const it = sheetBy(wb, (n) => n.some((x) => /^item$/.test(x)) && n.some((x) => /^accountingday/.test(x)) && n.some((x) => /^netsales.*iqd/.test(x)));
     let rate = 404, rateNote = 'IQD → SAR at 404 (no SAR column was found in the workbook, so the usual rate is used).';
-    if (it) { const II = nrow(it.rows[it.hi]); const ni = colIdx(II, /^netsales.*iqd/), si = colIdx(II, /^sar$/); const rs = []; it.rows.slice(it.hi + 1).forEach((r) => { if (!r) return; const a = num(r[ni]), b = num(r[si]); if (a > 0 && b > 0) rs.push(a / b); }); if (rs.length) { rs.sort((x, y) => x - y); rate = +rs[Math.floor(rs.length / 2)].toFixed(4); const mn = rs[0], mx = rs[rs.length - 1]; rateNote = `IQD → SAR at ${rate} (from the SAR column of the item sheet).`; if ((mx - mn) / mn > 0.005) issues.push(I('warn', `IQD per SAR is not constant in the item sheet (${mn.toFixed(1)} to ${mx.toFixed(1)}).`)); } }
+    const daySar = rowsD.filter((r) => r.iqd > 0 && r.sar > 0).map((r) => r.iqd / r.sar); // the daily sheet's own SAR column gives the rate it used
+    if (daySar.length) { daySar.sort((x, y) => x - y); rate = +daySar[Math.floor(daySar.length / 2)].toFixed(4); rateNote = `SAR as written in the daily sheet (“Net Sales, SAR”), i.e. IQD → SAR at ${fmtN(rate, 2)}${daySar[daySar.length - 1] - daySar[0] > 0.01 ? ` (between ${fmtN(daySar[0], 2)} and ${fmtN(daySar[daySar.length - 1], 2)})` : ''}.`; }
+    else if (it) { const II = nrow(it.rows[it.hi]); const ni = colIdx(II, /^netsales.*iqd/), si = colIdx(II, /^sar$/) >= 0 ? colIdx(II, /^sar$/) : colIdx(II, /sar$/); const rs = []; it.rows.slice(it.hi + 1).forEach((r) => { if (!r) return; const a = num(r[ni]), b = num(r[si]); if (a > 0 && b > 0) rs.push(a / b); }); if (rs.length) { rs.sort((x, y) => x - y); rate = +rs[Math.floor(rs.length / 2)].toFixed(4); const mn = rs[0], mx = rs[rs.length - 1]; rateNote = `IQD → SAR at ${rate} (from the SAR column of the item sheet).`; if ((mx - mn) / mn > 0.005) issues.push(I('warn', `IQD per SAR is not constant in the item sheet (${mn.toFixed(1)} to ${mx.toFixed(1)}).`)); } }
     const W = weeksOf(rowsD.map((d) => d.date), issues); if (!W) return null; periodCheck(det.rows, W, issues);
-    const byDay = {}; rowsD.forEach((r) => { const d = (byDay[r.date] = byDay[r.date] || { date: r.date, net: 0, tr: 0 }); d.net += r.iqd / rate; d.tr += r.bills; });
+    const toSar = (r) => (r.sar != null ? r.sar : r.iqd / rate); const byDay = {}; rowsD.forEach((r) => { const d = (byDay[r.date] = byDay[r.date] || { date: r.date, net: 0, tr: 0 }); d.net += toSar(r); d.tr += r.bills; });
     const days = Object.values(byDay);
     if (grand) { const t = { iqd: sum(rowsD, (d) => d.iqd), bills: sum(rowsD, (d) => d.bills) }; if (grand.iqd != null && Math.abs(t.iqd - grand.iqd) > Math.max(1, grand.iqd * 0.0005)) issues.push(I('warn', `The stores add up to IQD ${fmtN(t.iqd)} but the Grand Total row says IQD ${fmtN(grand.iqd)}.`)); if (grand.bills != null && Math.abs(t.bills - grand.bills) > 1) issues.push(I('warn', `The stores add up to ${fmtN(t.bills)} bills but the Grand Total row says ${fmtN(grand.bills)}.`)); }
     const inW = (d, w) => d >= w.start && d <= w.end; const names = [...new Set(rowsD.map((r) => r.store))];
-    const stores = names.map((s) => { const a = rowsD.filter((r) => r.store === s); const f = (w, k) => sum(a.filter((r) => inW(r.date, w)), (r) => (k === 'net' ? r.iqd / rate : r.bills)); const o = { store: s, net1: f(W.prev, 'net'), net2: f(W.cur, 'net'), tr1: f(W.prev, 'tr'), tr2: f(W.cur, 'tr') }; o.d1 = o.net1 ? pctOf(o.net2, o.net1) : null; return o; }).filter((s) => s.net1 || s.net2);
+    const stores = names.map((s) => { const a = rowsD.filter((r) => r.store === s); const f = (w, k) => sum(a.filter((r) => inW(r.date, w)), (r) => (k === 'net' ? toSar(r) : r.bills)); const o = { store: s, net1: f(W.prev, 'net'), net2: f(W.cur, 'net'), tr1: f(W.prev, 'tr'), tr2: f(W.cur, 'tr') }; o.d1 = o.net1 ? pctOf(o.net2, o.net1) : null; return o; }).filter((s) => s.net1 || s.net2);
     const { D } = buildMarket('Iraq', days, W, { stores }, issues); D.fx = rate;
     // items
     if (it) { const II = nrow(it.rows[it.hi]); const ci = { day: colIdx(II, /^accountingday/), store: colIdx(II, /^store$/), item: colIdx(II, /^item$/), code: colIdx(II, /^itemcode/), q: colIdx(II, /^numberof.*items?$/), iqd: colIdx(II, /^netsales.*iqd/) };
@@ -360,7 +373,7 @@
     ov = ov || {}; existing = existing || []; const issues = [];
     let wb; try { wb = root.XLSX.read(buf, { type: 'array', cellDates: false }); } catch (e) { return { type: null, ds: null, issues: [I('error', `“${name}” could not be opened as an Excel file (${e.message}).`)] }; }
     const det = detectExcel(wb);
-    if (!det) return { type: null, ds: null, issues: [I('error', `“${name}” was not recognised. Expected the London workbook (sheet “Revenue by day” with Accounting day / Transactions / Net Sales) or the Iraq workbook (sheet “A-Daily Sales Report” with Store / Accounting day / Net Sales IQD).`)] };
+    if (!det) return { type: null, ds: null, issues: [I('error', `“${name}” was not recognised. Expected the London workbook (sheet “Revenue by day” with Accounting day / Transactions or Bills / Net Sales) or the Iraq workbook (sheet “A-Daily Sales Report” with Store / Accounting day / Net Sales IQD).`)] };
     const r = det.market === 'London' ? parseLondonExcel(wb, det, name, issues) : parseIraqExcel(wb, det, name, issues);
     if (!r) return { type: det.market.toLowerCase(), ds: null, issues };
     const type = det.market.toLowerCase(); const D = r.D; const ds = { type, start: D.period.start, end: D.period.end, data: D };
@@ -386,6 +399,7 @@
   function overviewPage1(P, issues) {
     const rows = rowsOf(P.items, 3); const out = { title: joinRun((rows[0] || { items: [] }).items), sub: rows[1] ? joinRun(rows[1].items) : '', kpis: [], events: [], total: null, highlights: '' };
     const vi = rows.findIndex((r, i) => i > 1 && r.items.length >= 4 && r.items.every((x) => NUMT.test(x.s))); const lr = vi >= 0 ? rows[vi + 1] : null;
+    if (vi >= 0) { const m = []; rows[vi].items.forEach((t) => { const l = m[m.length - 1]; if (l && t.x - (l.x + l.w) <= 1.5) { l.s += t.s; l.w = t.x + t.w - l.x; } else m.push({ ...t }); }); rows[vi] = { ...rows[vi], items: m }; } // a value printed as separate glyphs (“1” “3”) is one number
     if (vi >= 0 && lr) rows[vi].items.forEach((v, i, a) => { const x0 = v.x - 8, x1 = a[i + 1] ? a[i + 1].x - 8 : 1e9; out.kpis.push({ value: v.s, x: v.x, y: v.y, label: joinRun(lr.items.filter((l) => l.x >= x0 && l.x < x1)), ly: lr.y }); }); else issues.push(I('warn', 'The headline figures were not found on the first page.'));
     const hi = rows.findIndex((r) => r.items.some((x) => /^event$/i.test(x.s)) && r.items.some((x) => /^status$/i.test(x.s))); if (hi < 0) { issues.push(I('error', 'The event table (Event / Status / Sales days / …) was not found on the first page.')); return out; }
     const hy = rows[hi].y; const ht = P.items.filter((i) => Math.abs(i.y - hy) <= 14); const edge = (re) => { const t = ht.find((i) => re.test(i.s)); return t ? t.x + t.w : null; };
