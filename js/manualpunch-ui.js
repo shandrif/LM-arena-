@@ -20,17 +20,20 @@
       const reload = async () => { sets = (await LM.db.all('datasets')).filter((d) => d.dept === 'manualpunch').sort((a, b) => (a.end < b.end ? 1 : -1)); if (!sets.find((s) => s.id === cur)) cur = sets[0] ? sets[0].id : null; draw(); };
 
       async function upload(file) {
-        let rf; try { const r = await LM.readBinary(file); rf = { text: new TextDecoder('utf-8').decode(r.buf), name: r.name, hash: r.hash }; } catch (e) { return LM.say(e.message); }
-        const tpl = { dept: 'manualpunch', ...((await LM.db.get('templates', 'manualpunch')) || {}) }; const ov = {}; const run = () => M.analyze(rf, sets, tpl, ov); let res = run();
-        const info = () => { const d = res.ds && res.ds.data; const c = res.ds ? M.compute(res.ds) : null; return {
+        const isPptx = /\.pptx$/i.test(file.name); let rf; try { const r = await LM.readBinary(file); rf = { text: isPptx ? '' : new TextDecoder('utf-8').decode(r.buf), buf: r.buf, name: r.name, hash: r.hash }; } catch (e) { return LM.say(e.message); }
+        const tpl = { dept: 'manualpunch', ...((await LM.db.get('templates', 'manualpunch')) || {}) }; const ov = {};
+        let slides = null; if (isPptx) { try { slides = await LM.pptx.read(rf.buf); } catch (e) { return LM.say(`“${rf.name}” could not be read as a PowerPoint file (${e.message}).`); } }
+        const allMp = (await (LM.dbRaw || LM.db).all('datasets')).filter((d) => d && d.dept === 'manualpunch'); // every loaded week: the deck is checked against the last full report
+        const run = () => (isPptx ? M.analyzeDeck(slides, rf.name, allMp, rf.hash, ov) : M.analyze(rf, sets, tpl, ov)); let res = run();
+        const info = () => { const d = res.ds && res.ds.data; const c = res.ds && !isPptx ? M.compute(res.ds) : null; const lp = d ? d.periods[d.periods.length - 1] : null; return {
           title: `Review before processing: ${rf.name}`, issues: res.issues,
-          facts: d ? [['Runs to', res.ds.end], ['Stores', d.stores.length], ['Periods', d.periods.length], [c.latest.label, p2(c.latest.pct)], ['Stores at 3%+', c.over3.length]] : [['Report', 'Not recognised']],
+          facts: d ? (isPptx ? [['Runs to', res.ds.end], ['Periods', d.periods.length], [lp.label, p2(lp.pct)], ['Headline figures', d.callouts.length], ['Flagged stores', d.flagged.length]] : [['Runs to', res.ds.end], ['Stores', d.stores.length], ['Periods', d.periods.length], [c.latest.label, p2(c.latest.pct)], ['Stores at 3%+', c.over3.length]]) : [['Report', 'Not recognised']],
           approveLabel: res.ds && sets.some((s) => s.end === res.ds.end) ? 'Approve & replace existing' : 'Approve & process',
           onFix: (fix, val) => { if (fix.type === 'asOf') ov.asOf = { date: val }; res = run(); dlg.update(info()); },
           onApprove: async () => { if (!res.ds || res.issues.some((i) => i.level === 'error')) throw new Error('Fix the errors first.'); const d = res.ds; const old = sets.find((s) => s.end === d.end);
             if (old) { await LM.db.put('history', { ...old, id: LM.uid(), replacedAt: new Date().toISOString() }); await LM.db.del('datasets', old.id); }
             const rec = { id: LM.uid(), dept: 'manualpunch', type: 'manualpunch', start: d.start, end: d.end, fileName: rf.name, hash: rf.hash, uploadedAt: new Date().toISOString(), data: d.data };
-            await LM.db.put('datasets', rec); await LM.db.put('templates', { ...tpl, dept: 'manualpunch', knownStores: [...new Set([...(tpl.knownStores || []), ...d.data.stores.map((s) => s.store)])] }); cur = rec.id; LM.toast(`Manual punch report to ${d.end} processed`); await reload(); } }; };
+            await LM.db.put('datasets', rec); if (!isPptx) await LM.db.put('templates', { ...tpl, dept: 'manualpunch', knownStores: [...new Set([...(tpl.knownStores || []), ...d.data.stores.map((s) => s.store)])] }); cur = rec.id; LM.toast(`Manual punch report to ${d.end} processed`); await reload(); } }; };
         const dlg = LM.review(info());
       }
 
@@ -38,12 +41,12 @@
       function draw() {
         LM.killCharts();
         const sel = sets.length > 1 ? h('select', { class: 'sel', onchange: (e) => { cur = e.target.value; draw(); } }, sets.map((s) => h('option', { value: s.id, selected: s.id === cur }, 'To ' + s.end))) : null;
-        panel.replaceChildren(h('div', { class: 'head' }, h('h2', {}, 'Manual punch'), sel, h('div', { class: 'spacer' }), LM.filePicker(upload, 'Upload manual punch report (.html)', false, '.html,.htm')), body);
+        panel.replaceChildren(h('div', { class: 'head' }, h('h2', {}, 'Manual punch'), sel, h('div', { class: 'spacer' }), LM.filePicker(upload, 'Upload manual punch report (.html or .pptx)', false, '.html,.htm,.pptx')), body);
         LM.dropZone(panel, upload);
         const ds = sets.find((s) => s.id === cur);
-        if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No manual punch report uploaded yet'), h('p', { class: 'sub' }, 'Drop the Manual Punch Dashboard (.html). It is shown exactly as it is, and its store figures are summarised here.')));
-        const c = M.compute(ds); const tabs = ['Summary', 'Stores', 'Report', 'Uploads'];
-        body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `${ds.data.title || 'Manual punch report'} · runs to ${dstr(ds.end)} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), { Summary: summary, Stores: stores, Report: report, Uploads: uploads }[sub](ds, c));
+        if (!ds) return body.replaceChildren(h('div', { class: 'empty' }, h('h3', {}, 'No manual punch report uploaded yet'), h('p', { class: 'sub' }, 'Drop the Manual Punch Dashboard (.html) or the Manual Punch Executive Summary (.pptx). The dashboard is shown exactly as it is and its store figures are summarised; the executive summary’s trend, headline figures and flagged stores are shown.')));
+        const deck = ds.data.kind === 'deck'; const c = deck ? null : M.compute(ds); const tabs = deck ? ['Summary', 'Flagged stores', 'Uploads'] : ['Summary', 'Stores', 'Report', 'Uploads']; if (!tabs.includes(sub)) sub = 'Summary';
+        body.replaceChildren(h('div', { class: 'sub', style: 'margin-bottom:8px' }, `${ds.data.title || 'Manual punch report'} · runs to ${dstr(ds.end)} · ${ds.fileName} · uploaded ${ds.uploadedAt.slice(0, 16).replace('T', ' ')}`), h('div', { class: 'subtabs' }, tabs.map((t) => h('button', { class: t === sub ? 'on' : '', onclick: () => { sub = t; draw(); } }, t))), (deck ? { Summary: deckSummary, 'Flagged stores': flaggedView, Uploads: uploads } : { Summary: summary, Stores: stores, Report: report, Uploads: uploads })[sub](ds, c));
       }
 
       function summary(ds, c) {
@@ -82,8 +85,23 @@
         }); return host;
       }
 
+      const statusPill = (t) => h('span', { class: 'pill ' + (/fixed|closed|done/i.test(t) ? 'new' : /progress|open|pending/i.test(t) ? 'closed' : ''), style: /improv/i.test(t) ? 'background:var(--good-bg);color:var(--good)' : '' }, t || '–');
+      function flaggedTable(F) {
+        return LM.table([{ k: 'store', label: 'Store', l: 1, cls: 'wrap' }, { k: 'from', label: 'Before %', fmt: (v) => (v == null ? '–' : v + '%') }, { k: 'to', label: 'Now %', fmt: (v, r) => (v == null ? r.rateText : h('span', { style: v >= 20 ? 'color:var(--bad);font-weight:700' : v >= 8 ? 'color:var(--warn);font-weight:600' : '' }, v + '%')) }, { k: 'chg', label: 'Change', fmt: (v, r) => pp(r.to, r.from) }, { k: 'manual', label: 'Manual (SAR)', fmt: sar }, { k: 'reason', label: 'Reason', l: 1, cls: 'wrap' }, { k: 'action', label: 'Action', l: 1, cls: 'wrap' }, { k: 'status', label: 'Status', l: 1, fmt: statusPill }], F, { sort: 'manual' });
+      }
+      function deckSummary(ds) {
+        const d = ds.data, P = d.periods, L = P[P.length - 1], V = P[P.length - 2]; const big = d.callouts;
+        const el = h('div', {}, h('div', { class: 'grid kpis' }, big.map((c) => kpi(c.label.split(/,|\bvs\b|\bdown\b/i)[0].trim() || 'Figure', c.value, c.label))),
+          card('What stands out', h('ul', { class: 'findings' }, [...d.titles, ...(V ? [`${L.label}: ${p2(L.pct)} of sales, ${pp(L.pct, V.pct).textContent} vs ${V.label}.`] : [])].map((t) => h('li', {}, t)))),
+          h('div', { style: 'margin-bottom:12px' }, chartCard('Manual punch as % of sales', 'c1', 300)), h('div', {}, card(`Flagged stores (${d.flagged.length})`, h('div', { class: 'sub', style: 'margin-bottom:6px' }, '“Before” is the period the summary compares with; reasons, actions and status are as written in the summary.'), d.flagged.length ? flaggedTable(d.flagged) : h('span', { class: 'sub' }, 'None.'))),
+          card('Notes', h('ul', { class: 'findings' }, [`This week’s file is the executive summary (${ds.fileName}). Store-by-store figures for every store come with the full HTML dashboard.`, d.comparedWith ? `Checked against the full report to ${dstr(d.comparedWith)}: the earlier periods’ rates and the flagged stores’ “before” rates.` : null, d.source].filter(Boolean).map((t) => h('li', {}, t)))));
+        setTimeout(() => LM.chart(el.querySelector('#c1'), { type: 'line', data: { labels: P.map((p) => p.label), datasets: [{ data: P.map((p) => p.pct), borderColor: '#0F6E56', backgroundColor: '#0F6E56', tension: 0, pointRadius: 3 }] }, options: { plugins: { legend: { display: false }, valueLabels: { suffix: '%' } }, scales: { y: { min: 0, ticks: { callback: (v) => v + '%' } } } } }));
+        return el;
+      }
+      function flaggedView(ds) { return card(`Flagged stores (${ds.data.flagged.length})`, h('div', { class: 'sub', style: 'margin-bottom:6px' }, 'Only the stores named in the executive summary. Orange is 8% or more, red 20% or more.'), flaggedTable(ds.data.flagged), h('div', { style: 'margin-top:8px' }, h('button', { class: 'btn small', onclick: () => LM.csv([{ k: 'store', label: 'Store' }, { k: 'from', label: 'Before %' }, { k: 'to', label: 'Now %' }, { k: 'manual', label: 'Manual SAR' }, { k: 'reason', label: 'Reason' }, { k: 'action', label: 'Action' }, { k: 'status', label: 'Status' }], ds.data.flagged, `manual-punch-flagged-${ds.end}.csv`) }, 'Export CSV'))); }
+
       function uploads() {
-        return card('Uploaded manual punch reports', LM.table([{ k: 'end', label: 'Runs to', l: 1, fmt: dstr }, { k: 'fileName', label: 'File', l: 1 }, { k: 'n', label: 'Stores', fmt: num }, { k: 'uploadedAt', label: 'Uploaded', l: 1, fmt: (v) => v.slice(0, 16).replace('T', ' ') }, { k: 'x', label: '', fmt: (v, r) => h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the manual punch report to ${r.end}?`)) { await LM.db.del('datasets', r.id); reload(); } } }, 'Delete') }], sets.map((s) => ({ ...s, n: s.data.stores.length })), { sort: 'end' }));
+        return card('Uploaded manual punch reports', LM.table([{ k: 'end', label: 'Runs to', l: 1, fmt: dstr }, { k: 'fileName', label: 'File', l: 1 }, { k: 'n', label: 'Stores (flagged for summaries)', fmt: num }, { k: 'uploadedAt', label: 'Uploaded', l: 1, fmt: (v) => v.slice(0, 16).replace('T', ' ') }, { k: 'x', label: '', fmt: (v, r) => h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask(`Delete the manual punch report to ${r.end}?`)) { await LM.db.del('datasets', r.id); reload(); } } }, 'Delete') }], sets.map((s) => ({ ...s, n: s.data.kind === 'deck' ? s.data.flagged.length : s.data.stores.length })), { sort: 'end' }));
       }
       await reload();
     },
