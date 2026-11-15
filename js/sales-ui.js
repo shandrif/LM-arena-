@@ -152,14 +152,15 @@
       const chartCard = (t, id) => h('div', { class: 'card' }, h('h3', {}, t), h('div', { class: 'chart', id }));
       const ty$ = () => LM.css('--accent'), ly$ = () => LM.css('--ly');
       const diff = (a, b, f = num) => (a == null || b == null ? '–' : `${a - b > 0 ? '+' : ''}${f(a - b)}`);
-      let wdView = 'ty';
+      let wdView = 'ty'; let storeQ = ''; // search text of “Average daily sales by store”, kept while the tab is open
       function storeAvgCard(c) {
         const hasLy = c.k.hasLy; const rows = c.stores.filter((x) => x.ty.n || x.ly.n);
         const cell = (v) => (v == null ? '–' : num(v));
         const staff = hc ? Object.fromEntries(hc.data.rows.map((r) => [r.key, r.total])) : null; // staff per store, from the headcount file
         const withStaff = staff ? rows.filter((x) => staff[x.key] > 0 && x.ty.avg != null) : []; const netProd = withStaff.length ? withStaff.reduce((t, x) => t + x.ty.avg, 0) / withStaff.reduce((t, x) => t + staff[x.key], 0) : null; // network = sum of the stores’ daily averages ÷ their staff
-        const body = rows.map((x) => { const st = staff ? staff[x.key] : null; const prod = st > 0 && x.ty.avg != null ? x.ty.avg / st : null;
-          return h('tr', {}, h('td', { class: 'l' }, x.name), h('td', {}, cell(x.ty.avg)), ...(hasLy ? [h('td', {}, x.ly.n ? cell(x.ly.avg) : (x.ty.n ? 'new' : '–')), h('td', {}, x.yoy == null ? '–' : delta(x.yoy))] : []),
+        const hcRow = hc ? Object.fromEntries(hc.data.rows.map((r) => [r.key, r])) : {}; // headcount location, city and area manager can be searched too
+        const body = rows.map((x) => { const st = staff ? staff[x.key] : null; const prod = st > 0 && x.ty.avg != null ? x.ty.avg / st : null; const hr = hcRow[x.key] || {};
+          return h('tr', { 'data-q': [x.name, x.key, hr.name, hr.city, hr.region, hr.areaManager].filter(Boolean).join(' ').toLowerCase() }, h('td', { class: 'l' }, x.name), h('td', {}, cell(x.ty.avg)), ...(hasLy ? [h('td', {}, x.ly.n ? cell(x.ly.avg) : (x.ty.n ? 'new' : '–')), h('td', {}, x.yoy == null ? '–' : delta(x.yoy))] : []),
             ...(staff ? [h('td', {}, st > 0 ? num(st) : '–'), h('td', { style: 'font-weight:700' }, prod == null ? '–' : num(prod)), h('td', {}, prod != null && netProd ? delta(prod / netProd - 1) : '–')] : [])); });
         const nt = c.net.ty, nl = c.net.ly;
         const foot = h('tr', { style: 'font-weight:700' }, h('td', { class: 'l' }, 'All stores (network sales ÷ days)'), h('td', {}, cell(nt.avg)), ...(hasLy ? [h('td', {}, nl.n ? cell(nl.avg) : '–'), h('td', {}, nt.avg && nl.avg ? delta(nt.avg / nl.avg - 1) : '–')] : []),
@@ -167,8 +168,12 @@
         const ly = c.k.hasLy ? `${c.stores.length ? '' : ''}Last year covers the same dates (one year earlier).` : '';
         const heads = ['Store', 'This year', ...(hasLy ? ['Last year', 'Change %'] : []), ...(staff ? ['Staff', 'Staff productivity', 'vs network'] : [])];
         const ds = sets.find((x) => x.id === cur); const pick = LM.filePicker((f) => LM.headcount.upload(f, { ds, existing: hc, done: reload }), hc ? 'Replace headcount' : 'Upload headcount', false, '.xlsx,.xls,.xlsm');
-        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Average daily sales by store (SAR)'), h('div', { class: 'spacer' }), hc ? h('span', { class: 'sub' }, `Headcount ${hc.data.period || hc.end} · ${hc.fileName}`) : null, pick, hc ? h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask('Remove the headcount of this week? Staff productivity will no longer be shown.')) { await LM.db.del('datasets', hc.id); reload(); } } }, 'Remove') : null),
-          h('div', { style: 'max-height:380px;overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, heads.map((t, i) => h('th', { class: i ? '' : 'l', title: t === 'Staff productivity' ? 'Average daily sales ÷ staff, in SAR per staff member per day' : '' }, t, t === 'Staff productivity' ? h('div', { class: 'sub', style: 'font-weight:400' }, 'SAR / staff / day') : null)))), h('tbody', {}, body, foot))),
+        const none = h('tr', { style: 'display:none' }, h('td', { class: 'l sub', colspan: heads.length }, 'No store matches this search.')); const found = h('span', { class: 'sub' });
+        const filter = () => { const words = storeQ.toLowerCase().split(/\s+/).filter(Boolean); let n = 0; body.forEach((tr) => { const ok = words.every((w) => tr.dataset.q.includes(w)); tr.style.display = ok ? '' : 'none'; if (ok) n++; }); none.style.display = n ? 'none' : ''; found.textContent = words.length ? `${n} of ${body.length} stores` : ''; };
+        const search = h('input', { type: 'search', placeholder: 'Search store…', value: storeQ, title: 'Store name or code; also the headcount location, city or area manager', style: 'min-width:200px', oninput: (e) => { storeQ = e.target.value; filter(); } });
+        setTimeout(filter);
+        return h('div', { class: 'card', style: 'margin-bottom:12px' }, h('div', { class: 'tools' }, h('h3', { style: 'margin:0' }, 'Average daily sales by store (SAR)'), search, found, h('div', { class: 'spacer' }), hc ? h('span', { class: 'sub' }, `Headcount ${hc.data.period || hc.end} · ${hc.fileName}`) : null, pick, hc ? h('button', { class: 'btn small danger', onclick: async () => { if (await LM.ask('Remove the headcount of this week? Staff productivity will no longer be shown.')) { await LM.db.del('datasets', hc.id); reload(); } } }, 'Remove') : null),
+          h('div', { style: 'max-height:380px;overflow:auto' }, h('table', { class: 't' }, h('thead', {}, h('tr', {}, heads.map((t, i) => h('th', { class: i ? '' : 'l', title: t === 'Staff productivity' ? 'Average daily sales ÷ staff, in SAR per staff member per day' : '' }, t, t === 'Staff productivity' ? h('div', { class: 'sub', style: 'font-weight:400' }, 'SAR / staff / day') : null)))), h('tbody', {}, body, none, foot))),
           h('div', { class: 'sub', style: 'margin-top:6px' }, `Average of the days with sales. ${ly}`, staff ? ` Staff productivity = the store’s average daily sales ÷ its headcount (all roles); “–” where the headcount file has no match for the store. vs network compares with ${netProd == null ? '–' : num(netProd)} SAR per staff per day (${withStaff.length} stores with a headcount).` : ' Upload the weekly headcount file to add staff and staff productivity per store.'));
       }
       function weekdayStoreCard(c) {
