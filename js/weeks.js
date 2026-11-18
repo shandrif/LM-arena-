@@ -103,7 +103,7 @@
       timer = null; if (busy || !W.ready) return; busy = true;
       try {
         const tab = getTab(); let bar = panel.querySelector(':scope > .wk-banner'); let text = '';
-        if (tab !== 'discussion') {
+        if (tab !== 'discussion' && !/^cu_/.test(tab)) {
           const recs = (await base.all('datasets')).filter((r) => r.dept === tab); const here = new Set(); const before = new Map();
           recs.forEach((r) => { const w = recWeek(r); const k = r.type || ''; if (w === W.selected) here.add(k); else if (w !== REF && w < W.selected && (!before.has(k) || w > before.get(k))) before.set(k, w); });
           const missing = [...before].filter(([k]) => !here.has(k));
